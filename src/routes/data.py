@@ -32,7 +32,7 @@ async def upload_file(project_id: str, file: UploadFile = File(...),
         )
     project_controller = ProjectController(app_setting)
     project_dir_path = project_controller.get_project_path(project_id=project_id)
-    file_path = data_controller.generate_unique_file_name(file.filename, project_id)    
+    file_path, file_id = data_controller.generate_unique_file_path(file.filename, project_id)    
 
     try:
         async with aiofiles.open(file_path, "wb") as out_file:
@@ -40,11 +40,12 @@ async def upload_file(project_id: str, file: UploadFile = File(...),
                 await out_file.write(chunk)
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
-        
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "is_valid": is_valid,
-            "message": ResponceMessagesEnum.FILE_UPLOAD_SUCCESS.value
+            "is_valid": True,
+            "message": ResponceMessagesEnum.FILE_UPLOAD_SUCCESS.value,
+            "file_id": file_id
         }
     )

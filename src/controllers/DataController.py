@@ -25,7 +25,7 @@ class DataController(BaseController):
             
         return True, ResponceMessagesEnum.FILE_UPLOAD_SUCCESS.value
 
-    def generate_unique_file_name(self, src_file_name: str, project_id: str):
+    def generate_unique_file_path(self, src_file_name: str, project_id: str):
         random_key = self.generate_random_string()
         project_path = ProjectController(app_setting=self.app_setting).get_project_path(project_id)
         clean_file_name = self.get_clean_file_name(src_file_name)
@@ -39,7 +39,7 @@ class DataController(BaseController):
             new_file_name =  os.path.join(
                 project_path, 
                 random_key + "_" + clean_file_name)
-        return new_file_name
+        return new_file_name, random_key +"_" + clean_file_name
     
     def get_clean_file_name(self, src_file_name: str):
         #remove special characters except . and _ and convert to lower case

@@ -1,0 +1,24 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: mongodb
+    ports:
+      - "27007:27017"
+    volumes:
+      - ./mongodb_data:/data/db
+    networks:
+      - rag_network_backend
+    restart: always
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      MONGODB_DATABASE: rag
+      MONGODB_USER: rag
+      MONGODB_PASSWORD: rag
+
+networks:
+  rag_network_backend:
+    driver: bridge

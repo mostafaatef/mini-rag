@@ -3,10 +3,10 @@ from fastapi.responses import JSONResponse
 from models.enums.ResponceEnum import ResponceMessagesEnum
 import os
 from helpers.config import get_settings, Settings
-from controllers import DataController
-from controllers import ProjectController
+from controllers import DataController, ProjectController, ProcessingController    
 import aiofiles
 import logging
+from .schemes.data import RequestProcessor
 
 logger = logging.getLogger("uvicorn_error")
 
@@ -49,3 +49,23 @@ async def upload_file(project_id: str, file: UploadFile = File(...),
             "file_id": file_id
         }
     )
+@data_router.post("/process/{project_id}")
+async def process_file(project_id: str, request_processor: RequestProcessor, 
+                        app_setting:Settings = Depends(get_settings)):
+    
+    request_controller = ProcessingController(project_id, app_setting)
+    
+    file_id = request_processor.file_id
+    chunk_size = request_processor.chunk_size
+    chunk_overlap = request_processor.chunk_overlap
+
+    file_chunks = request_controller.process_file_content(file_id, chunk_size, chunk_overlap)
+    if file_chunks is None or len(file_chunks) == 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "is_valid": False,
+                "message": ResponceMessagesEnum.FILE_PROCESSING_FAILED.value
+            }
+        )
+    return file_chunks

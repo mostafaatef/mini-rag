@@ -1,12 +1,12 @@
 from fastapi import APIRouter, FastAPI, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse
 from models.enums.ResponceEnum import ResponceMessagesEnum
-import os
 from helpers.config import get_settings, Settings
 from controllers import DataController, ProjectController, ProcessingController    
 import aiofiles
 import logging
-from .schemes.data import RequestProcessor
+from models.schemes.RequestProcessor import RequestProcessor
+from models.ProjectModel import ProjectModel
 
 logger = logging.getLogger("uvicorn_error")
 

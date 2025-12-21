@@ -6,4 +6,5 @@ class ResponceMessagesEnum(Enum):
     FILE_UPLOAD_SUCCESS = "file_upload_success"
     FILE_UPLOAD_FAILED = "file_upload_failed"
     FILE_PROCESSING_FAILED = "file_processing_failed"
+    FILE_PROCESSING_SUCCESS = "file_processing_success"
     

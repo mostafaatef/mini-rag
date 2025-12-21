@@ -1,4 +1,4 @@
-from fastapi import APIRouter, FastAPI, Depends, File, UploadFile, status
+from fastapi import APIRouter, FastAPI, Depends, File, UploadFile, status, Request
 from fastapi.responses import JSONResponse
 from models.enums.ResponceEnum import ResponceMessagesEnum
 from helpers.config import get_settings, Settings
@@ -7,6 +7,8 @@ import aiofiles
 import logging
 from models.schemes.RequestProcessor import RequestProcessor
 from models.ProjectModel import ProjectModel
+from models.ChunkModel import ChunkModel
+from models.schemes.db_schemes.chunk import Chunk
 
 logger = logging.getLogger("uvicorn_error")
 
@@ -17,9 +19,12 @@ data_router = APIRouter(
     
 )
 
-@data_router.post("/upload/{project_id}")
-async def upload_file(project_id: str, file: UploadFile = File(...), 
+@data_router.post("/upload/{project_title}")
+async def upload_file(request: Request, project_title: str, file: UploadFile = File(...), 
                         app_setting:Settings = Depends(get_settings)):
+    
+    project_model = ProjectModel(request.app.mongodb_db_client, app_setting)
+    project = await project_model.get_project_or_create_new(project_title)
     data_controller = DataController(app_setting)
     is_valid, return_message = data_controller.validate_uploaded_file(file)
     if not is_valid:
@@ -31,8 +36,8 @@ async def upload_file(project_id: str, file: UploadFile = File(...),
             }
         )
     project_controller = ProjectController(app_setting)
-    project_dir_path = project_controller.get_project_path(project_id=project_id)
-    file_path, file_id = data_controller.generate_unique_file_path(file.filename, project_id)    
+    project_dir_path = project_controller.get_project_path(project_id=project.id)
+    file_path, file_id = data_controller.generate_unique_file_path(file.filename, project.id)    
 
     try:
         async with aiofiles.open(file_path, "wb") as out_file:
@@ -46,18 +51,23 @@ async def upload_file(project_id: str, file: UploadFile = File(...),
         content={
             "is_valid": True,
             "message": ResponceMessagesEnum.FILE_UPLOAD_SUCCESS.value,
-            "file_id": file_id
+            "file_id": file_id,
+            # "project_id": str(project.id)
         }
     )
-@data_router.post("/process/{project_id}")
-async def process_file(project_id: str, request_processor: RequestProcessor, 
+@data_router.post("/process/{project_title}")
+async def process_file(request: Request, project_title: str, request_processor: RequestProcessor, 
                         app_setting:Settings = Depends(get_settings)):
-    
-    request_controller = ProcessingController(project_id, app_setting)
     
     file_id = request_processor.file_id
     chunk_size = request_processor.chunk_size
     chunk_overlap = request_processor.chunk_overlap
+    do_reset = request_processor.do_reset
+    
+    request_controller = ProcessingController(project_title, app_setting)
+    project_model = ProjectModel(request.app.mongodb_db_client, app_setting)
+    project = await project_model.get_project_or_create_new(project_title)
+    chunk_model = ChunkModel(request.app.mongodb_db_client, app_setting)
 
     file_chunks = request_controller.process_file_content(file_id, chunk_size, chunk_overlap)
     if file_chunks is None or len(file_chunks) == 0:
@@ -68,4 +78,28 @@ async def process_file(project_id: str, request_processor: RequestProcessor,
                 "message": ResponceMessagesEnum.FILE_PROCESSING_FAILED.value
             }
         )
-    return file_chunks
+    
+    file_chunks_records = [
+        Chunk(
+            project_id=project.id,
+            file_id=file_id,
+            chunk_content=chunk.page_content,
+            chunk_metadata=chunk.metadata,
+            chunk_order=i+1
+        )
+        for i, chunk in enumerate(file_chunks)
+    ]
+    
+    if do_reset:
+       _ = await chunk_model.delete_chunks_by_project_id(project.id)
+    
+    no_chunks_inserted = await chunk_model.insert_many_chunks(file_chunks_records)
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "is_valid": True,
+            "message": ResponceMessagesEnum.FILE_PROCESSING_SUCCESS.value,
+            "chunks_inserted_no": no_chunks_inserted
+        }
+    )

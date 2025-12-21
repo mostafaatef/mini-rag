@@ -9,14 +9,14 @@ class ProjectModel(BaseDataModel):
         self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME]
     
     async def create_project(self, project: Project):
-        result = await self.collection.insert_one(project.dict())
-        project._id = result.inserted_id
+        result = await self.collection.insert_one(project.dict(by_alias=True, exclude_none=True))
+        project.id = result.inserted_id
         return project
 
     async def get_project_or_create_new(self, project_id: str):
-        record = await self.collection.find_one({"_id": project_id})
+        record = await self.collection.find_one({"project_id": project_id})
         if record is None:
-            new_project = Project(id=project_id)
+            new_project = Project(project_id=project_id)
             new_project = await self.create_project(new_project)
             return new_project
         return Project(**record)

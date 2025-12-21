@@ -3,8 +3,9 @@ from typing import Optional
 from bson import ObjectId
 
 class Project(BaseModel):
-    _id: Optional[ObjectId] = None
-    project_id: str = Field(..., min_length=1, max_length=1, description="Project ID")
+    # _id: Optional[ObjectId] = None
+    id: Optional[ObjectId] = Field(None, alias="_id")
+    project_id: str = Field(..., min_length=1, max_length=50, description="Project ID")
     project_name: Optional[str] = None
     project_description: Optional[str] = None
 
@@ -12,8 +13,8 @@ class Project(BaseModel):
     def validate_project_id(cls, v):
         #if v in cls._id:
         #    raise ValueError("Project ID must be unique")
-        if not v.isalnum():
-            raise ValueError("Project ID must be alphanumeric")
+        if not v.replace('_', '').isalnum():
+            raise ValueError("Project ID must be alphanumeric and underscores")
         return v
     
     class Config:

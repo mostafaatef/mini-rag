@@ -78,9 +78,21 @@ async def process_file(request: Request, project_title: str, request_processor: 
     request_controller = ProcessingController(project_title, app_setting)
     project_model = await ProjectModel.create_instance(request.app.mongodb_db_client, app_setting)
     project = await project_model.get_project_or_create_new(project_title)
+    
+    asset_model = await AssetModel.create_instance(request.app.mongodb_db_client, app_setting)
+    asset_record = await asset_model.get_asset_by_id(file_id)
+    if asset_record is None:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "is_valid": False,
+                "message": ResponceMessagesEnum.FILE_NOT_FOUND.value
+            }
+        )
+    
     chunk_model = await ChunkModel.create_instance(request.app.mongodb_db_client, app_setting)
 
-    file_chunks = request_controller.process_file_content(file_id, chunk_size, chunk_overlap)
+    file_chunks = request_controller.process_file_content(asset_record.asset_name, chunk_size, chunk_overlap)
     if file_chunks is None or len(file_chunks) == 0:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -92,8 +104,8 @@ async def process_file(request: Request, project_title: str, request_processor: 
     
     file_chunks_records = [
         Chunk(
-            project_id=project.id,
-            file_id=file_id,
+            chunk_project_id=project.id,
+            chunk_file_id=file_id,
             chunk_content=chunk.page_content,
             chunk_metadata=chunk.metadata,
             chunk_order=i+1

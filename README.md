@@ -1,115 +1,127 @@
-# mini-rag
+# Mini-RAG
 
-This is a minimal implementation of the RAG model for question answering.
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-green.svg)
+![MongoDB](https://img.shields.io/badge/MongoDB-Motor-green.svg)
+![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)
 
-## The Course
+**Mini-RAG** is a streamlined implementations of a Retrieval-Augmented Generation (RAG) system. It provides a robust backend API for uploading documents, processing them into chunks, and storing them for semantic search and LLM context augmentation.
 
-This is an educational project where all of the codes where explained (step by step) via a set of `Arabic` youtube videos. Please check the list:
+---
 
-| # | Title                                    | Link                                                                                                 | Codes                                              |
-|---|------------------------------------------|------------------------------------------------------------------------------------------------------|----------------------------------------------------|
-| 1 | About the Course ماذا ولمـــاذا          | [Video](https://www.youtube.com/watch?v=Vv6e2Rb1Q6w&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj)         | NA                                                 |
-| 2 | What will we build ماذا سنبنى في المشروع | [Video](https://www.youtube.com/watch?v=_l5S5CdxE-Q&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=2) | NA                                                 |
-| 3 | Setup your tools الأدوات الأساسية        | [Video](https://www.youtube.com/watch?v=VSFbkFRAT4w&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=3) | NA                                                 |
-| 4 | Project Architecture                     | [Video](https://www.youtube.com/watch?v=Ei_nBwBbFUQ&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=4) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-001) |
-| 5 | Welcome to FastAPI                       | [Video](https://www.youtube.com/watch?v=cpOuCdzN_Mo&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=5) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-002) |
-| 6 | Nested Routes + Env Values               | [Video](https://www.youtube.com/watch?v=CrR2Bz2Y7Hw&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=6) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-003) |
-| 7 | Uploading a File                         | [Video](https://www.youtube.com/watch?v=5alMKCbFqWs&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=7) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-004) |
-| 8 | File Processing                         | [Video](https://www.youtube.com/watch?v=gQgr2iwtSBw) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-005) |
-| 9 | Docker - MongoDB - Motor                         | [Video](https://www.youtube.com/watch?v=2NOKWm0xJAk) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-006) |
-| 10 | Mongo Schemes and Models                        | [Video](https://www.youtube.com/watch?v=zgcnnMJXXV8) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-007) |
-| 11 | Mongo Indexing                        | [Video](https://www.youtube.com/watch?v=iO8FAmUVcjE) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-008) |
-| 12 | Data Pipeline Enhancements                        | [Video](https://www.youtube.com/watch?v=4x1DuezZBDU) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-008) |
-| 13 | Checkpoint-1                        | [Video](https://www.youtube.com/watch?v=7xIsZkCisPk) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-008) |
-| 14 | LLM Factory                        | [Video](https://www.youtube.com/watch?v=5TKRIFtIQAY) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-008) |
-| 15 | Vector DB Factory                        | [Video](https://www.youtube.com/watch?v=JtS9UkvF_10) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-009) |
-| 16 | Semantic Search                       | [Video](https://www.youtube.com/watch?v=V3swQKokJW8) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-010) |
-| 17 | Augmented Answers                       | [Video](https://www.youtube.com/watch?v=1Wx8BoM5pLU) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-011) |
-| 18 | Checkpoint-1 + Fix Issues                       | [Video](https://youtu.be/6zG4Idxldvg) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-012) |
-| 19 | Ollama Local LLM Server                       | [Video](https://youtu.be/-epZ1hAAtrs) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-012) |
-| 20 | From Mongo to Postgres + SQLAlchemy & Alembic                       | [Video](https://www.youtube.com/watch?v=BVOq7Ek2Up0) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-013) |
-| 21 | The way to PgVector                       | [Video](https://www.youtube.com/watch?v=g99yq5zlYAE) | [branch](https://github.com/bakrianoo/mini-rag/tree/tut-014) |
+## 🏗️ Architecture
 
+The project follows a clean, modular architecture:
 
-## Requirements
+- **Framework**: FastAPI for high-performance, async API endpoints.
+- **Database**: MongoDB (via Motor) for storing Projects, Assets (Files), and Chunks.
+- **Processing**: LangChain for document loading (PDF, TXT) and text splitting.
+- **Environment**: Docker support for easy database provisioning.
 
-- Python 3.10
+### Key Concepts
 
-#### Install Dependencies
+- **Project**: A container for a collection of documents.
+- **Asset**: A raw file (e.g., PDF, TXT) uploaded to the system.
+- **Chunk**: A processed segment of text from an Asset, ready for embedding/retrieval.
 
-```bash
-sudo apt update
-sudo apt install libpq-dev gcc python3-dev
-```
+---
 
-#### Install Python using MiniConda
+## 🚀 Quick Start
 
-1) Download and install MiniConda from [here](https://docs.anaconda.com/free/miniconda/#quick-command-line-install)
-2) Create a new environment using the following command:
-```bash
-$ conda create -n mini-rag python=3.10
-```
-3) Activate the environment:
-```bash
-$ conda activate mini-rag
-```
+### 1. Prerequisites
 
-### (Optional) Setup you command line interface for better readability
+- Python 3.10+
+- Docker & Docker Compose
+
+### 2. Setup Database
+
+Start the MongoDB instance using Docker:
 
 ```bash
-export PS1="\[\033[01;32m\]\u@\h:\w\n\[\033[00m\]\$ "
+cd docker
+cp .env.example .env
+# Edit .env if necessary
+docker-compose up -d
 ```
 
-### (Optional) Run Ollama Local LLM Server using Colab + Ngrok
-
-- Check the [notebook](https://colab.research.google.com/drive/1KNi3-9KtP-k-93T3wRcmRe37mRmGhL9p?usp=sharing) + [Video](https://youtu.be/-epZ1hAAtrs)
-
-## Installation
-
-### Install the required packages
+### 3. Setup Application
 
 ```bash
-$ cd src
-$ pip install -r requirements.txt
+cd src
+# Create virtual environment (optional but recommended)
+conda create -n mini-rag python=3.10
+conda activate mini-rag
+
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-### Setup the environment variables
+### 4. Configuration
+
+Copy the example environment file and configure your settings:
 
 ```bash
-$ cp .env.example .env
+cp .env.example .env
 ```
+Ensure `MONGODB_URL` in `.env` matches your Docker configuration (default: `mongodb://localhost:27017`).
 
-### Run Alembic Migration
+### 5. Run Server
 
 ```bash
-$ alembic upgrade head
+# From the src directory
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+Server will start at `http://localhost:8000`. API docs available at `http://localhost:8000/docs`.
+
+---
+
+## 📚 API Reference
+
+**Note**: All endpoints are prefixed with `/api/v1`.
+
+### Data Management
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/data/upload/{project_title}` | Upload a file. Returns `asset_id`. |
+| `POST` | `/data/process/{project_title}` | Process an asset into chunks. Requires `asset_id`. |
+
+**IMPORTANT**: The API uses `asset_id` to reference uploaded files. Please ensure your client applications use this field instead of `file_id`.
+
+---
+
+## 📂 Project Structure
+
+```
+mini-rag/
+├── docker/             # Docker configuration
+├── src/
+│   ├── main.py         # Application entry point
+│   ├── controllers/    # Business logic (Data, Processing, Project)
+│   ├── models/         # Database models & Schemas
+│   ├── routes/         # API Endpoints
+│   └── helpers/        # Configuration & Utilities
+└── README.md
 ```
 
-Set your environment variables in the `.env` file. Like `OPENAI_API_KEY` value.
+---
 
-## Run Docker Compose Services
+## 🎓 Learning Resources
 
-```bash
-$ cd ../docker
-$ cp .env.example .env
-```
+This project is part of an educational series on building RAG applications.
 
-- update `.env` with your credentials
+| # | Title | Link | Branch |
+|---|---|---|---|
+| 1 | About the Course | [Video](https://www.youtube.com/watch?v=Vv6e2Rb1Q6w&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj) | NA |
+| 4 | Project Architecture | [Video](https://www.youtube.com/watch?v=Ei_nBwBbFUQ&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=4) | [tut-001](https://github.com/bakrianoo/mini-rag/tree/tut-001) |
+| 7 | Uploading a File | [Video](https://www.youtube.com/watch?v=5alMKCbFqWs&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=7) | [tut-004](https://github.com/bakrianoo/mini-rag/tree/tut-004) |
+| 8 | File Processing | [Video](https://www.youtube.com/watch?v=gQgr2iwtSBw) | [tut-005](https://github.com/bakrianoo/mini-rag/tree/tut-005) |
 
+*(See full playlist for all videos)*
 
+---
 
-```bash
-$ cd ../docker
-$ sudo docker compose up -d
-```
+## 📮 Postman Collection
 
-## Run the FastAPI server
-
-```bash
-$ cd ../src
-$ uvicorn main:app --reload --host 0.0.0.0 --port 5000
-```
-
-## POSTMAN Collection
-
-Download the POSTMAN collection from [/assets/mini-rag-app.postman_collection.json](/assets/mini-rag-app.postman_collection.json)
+Download the Postman collection to test the API endpoints:
+[mini-rag-app.postman_collection.json](/assets/mini-rag-app.postman_collection.json)

@@ -1,12 +1,12 @@
-from .BaseDataModel import BaseDataModel
+from .BaseRepository import BaseRepository
 from typing import List
 from helpers.config import Settings
-from .schemes.db_schemes.chunk import Chunk
+from models.schemes.db_schemes.chunk import Chunk
 from models.enums.DatabaseEnum import DatabaseEnum
 from bson import ObjectId
 from pymongo import InsertOne
 
-class ChunkModel(BaseDataModel):
+class ChunkRepository(BaseRepository):
     def __init__(self, db_client: object, app_settings: Settings):
         super().__init__(db_client, app_settings)
         self.collection = self.db_client[DatabaseEnum.COLLECTION_CHUNKS_NAME]
@@ -61,18 +61,18 @@ class ChunkModel(BaseDataModel):
         return len(chunks)
 
     async def delete_chunks_by_project_id(self, project_id: str):
-        result = await self.collection.delete_many({"project_id": project_id})
+        result = await self.collection.delete_many({"chunk_project_id": ObjectId(project_id)})
         return result.deleted_count
 
     async def get_chunks_by_project_id(self, project_id: str):
-        cursor = await self.collection.find({"project_id": project_id})
+        cursor = await self.collection.find({"chunk_project_id": ObjectId(project_id)})
         chunks = []
         async for chunk_doc in cursor:
             chunks.append(Chunk(**chunk_doc))
         return chunks
 
     async def delete_chunks_by_file_id(self, file_id: str):
-        result = await self.collection.delete_many({"file_id": file_id})
+        result = await self.collection.delete_many({"chunk_asset_id": ObjectId(file_id)})
         return result.deleted_count 
     
     async def insert_bulk(self, chunks: List[Chunk]):

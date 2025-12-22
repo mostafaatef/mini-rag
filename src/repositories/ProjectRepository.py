@@ -1,9 +1,9 @@
-from .BaseDataModel import BaseDataModel
+from .BaseRepository import BaseRepository
 from helpers.config import Settings
-from .schemes.db_schemes.project import Project
+from models.schemes.db_schemes.project import Project
 from models.enums.DatabaseEnum import DatabaseEnum
 
-class ProjectModel(BaseDataModel):
+class ProjectRepository(BaseRepository):
     def __init__(self, db_client: object, app_settings: Settings):
         super().__init__(db_client, app_settings)
         self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME]

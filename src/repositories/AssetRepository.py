@@ -1,10 +1,11 @@
-from .BaseDataModel import BaseDataModel
-from .schemes.db_schemes.asset import Asset
+from .BaseRepository import BaseRepository
+from models.schemes.db_schemes.asset import Asset
 from helpers.config import Settings
 from models.enums.DatabaseEnum import DatabaseEnum
 from bson import ObjectId
+from bson.errors import InvalidId
 
-class AssetModel(BaseDataModel):
+class AssetRepository(BaseRepository):
     def __init__(self, db_client: object, app_settings: Settings):
         super().__init__(db_client, app_settings)
         self.collection = self.db_client[DatabaseEnum.COLLECTION_ASSETS_NAME]
@@ -44,13 +45,19 @@ class AssetModel(BaseDataModel):
         return asset
 
     async def get_asset_by_id(self, asset_id: str):
-        record = await self.collection.find_one({"_id": ObjectId(asset_id)})
+        try:
+            record = await self.collection.find_one({"_id": ObjectId(asset_id)})
+        except InvalidId:
+            return None
         if record is None:
             return None
         return Asset(**record)
 
-    async def get_assets_by_project_id(self, project_id: str):
-        cursor = await self.collection.find({"asset_project_id": ObjectId(asset_project_id)})
+    async def get_assets_by_project_id(self, asset_project_id: str, asset_type: str = None):
+        query = {"asset_project_id": ObjectId(asset_project_id)}
+        if asset_type:
+            query["asset_type"] = asset_type
+        cursor = self.collection.find(query)
         assets = []
         async for asset_doc in cursor:
             assets.append(Asset(**asset_doc))

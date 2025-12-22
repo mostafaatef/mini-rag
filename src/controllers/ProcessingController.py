@@ -7,9 +7,13 @@ from models.enums import ProcessingEnum
 
 from fastapi import UploadFile
 from helpers.config import Settings
-from models import ResponceMessagesEnum, ProjectModel, ChunkModel, AssetModel
+from models import ResponceMessagesEnum
+from repositories import ProjectRepository, ChunkRepository, AssetRepository
 from models.schemes.db_schemes import Chunk
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ProcessingController(BaseController):
     def __init__(self, project_id: str, app_setting: Settings):
@@ -23,22 +27,31 @@ class ProcessingController(BaseController):
     def get_document_loader(self, asset_id: str):
         file_extension = self.get_asset_extension(asset_id)
         file_path = os.path.join(self.project_path, asset_id)
-        if file_extension == ProcessingEnum.TXT.value:
+        
+        logger.debug(f"Processing file: {asset_id}, Path: {file_path}, Extension: {file_extension}")
+        
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            return None
+        
+        if file_extension.lower() == ProcessingEnum.TXT.value:
             return TextLoader(file_path,encoding="utf-8")
-        elif file_extension == ProcessingEnum.PDF.value:
+        elif file_extension.lower() == ProcessingEnum.PDF.value:
             return PyMuPDFLoader(file_path)
         else:
+           logger.warning(f"Unsupported file type: {file_extension}")
            # raise ValueError(f"Unsupported file type: {file_extension}")
            return None
 
-    def get_asset_content(self, asset_id: str):
-        loader = self.get_document_loader(asset_id)
+    def get_asset_content(self, asset_name: str):
+        loader = self.get_document_loader(asset_name)
         if loader is None:
+            logger.error(f"Loader is None for asset: {asset_name}")
             return None
         return loader.load()
     
-    def process_asset_content(self, asset_id: str, chunk_size: int, chunk_overlap: int):
-        file_content = self.get_asset_content(asset_id)
+    def process_asset_content(self, asset_name: str, chunk_size: int, chunk_overlap: int):
+        file_content = self.get_asset_content(asset_name)
         if file_content is None:
             return None
         
@@ -69,41 +82,62 @@ class ProcessingController(BaseController):
 
     async def handle_asset_processing(self, project_title: str, asset_id: str, chunk_size: int, chunk_overlap: int, do_reset: bool, db_client):
         # 1. Get Project
-        project_model = ProjectModel(db_client, self.app_setting)
+        project_model = ProjectRepository(db_client, self.app_setting)
         project = await project_model.get_project_or_create_new(project_title)
         
-        # 2. Get Asset
-        asset_model = AssetModel(db_client, self.app_setting)
-        asset_record = await asset_model.get_asset_by_id(asset_id)
-        if asset_record is None:
-            return False, ResponceMessagesEnum.FILE_NOT_FOUND.value, None
-        
+        # 2. Get Asset/Assets
+        asset_records = []
+        if asset_id is not None:
+            asset_model = AssetRepository(db_client, self.app_setting)
+            asset_record = await asset_model.get_asset_by_id(asset_id)
+            if asset_record is None:
+                return False, ResponceMessagesEnum.FILE_NOT_FOUND.value, None, 0, 0
+            asset_records = [asset_record]
+        else:
+            asset_model = AssetRepository(db_client, self.app_setting)
+            asset_records = await asset_model.get_assets_by_project_id(project.id)
+            if asset_records is None or len(asset_records) == 0:
+                return False, ResponceMessagesEnum.FILE_NOT_FOUND.value, None
+       
         # 3. Process Content
-        # We pass as asset_name (filename) because process_asset_content constructs path from it
-        file_chunks = self.process_asset_content(asset_record.asset_name, chunk_size, chunk_overlap)
+        # We pass as asset_name (filename) / assets, because process_asset_content constructs path from it
+        # 3. Process Content & 4. Create Chunks
+        all_chunks_records = []
+        no_files_processed = 0
+        no_files_chunked = 0
         
-        if file_chunks is None or len(file_chunks) == 0:
-            return False, ResponceMessagesEnum.FILE_PROCESSING_FAILED.value, None
+        for asset_record in asset_records:
+            no_files_processed += 1
+            logger.debug(f"Processing asset record: {asset_record.asset_name}")
+            file_chunks = self.process_asset_content(asset_record.asset_name, chunk_size, chunk_overlap)
+            
+            if file_chunks is None or len(file_chunks) == 0:
+                logger.debug(f"Warning: No chunks chunked from asset: {asset_record.asset_name} (Skipping)")
+                continue
+                
+            no_files_chunked += 1
+            # Create Chunks for this file
+            file_chunks_records = [
+                Chunk(
+                    chunk_project_id=project.id,
+                    chunk_asset_id=asset_record.id,
+                    chunk_content=chunk.page_content,
+                    chunk_metadata=chunk.metadata,
+                    chunk_order=i+1
+                )
+                for i, chunk in enumerate(file_chunks)
+            ]
+            all_chunks_records.extend(file_chunks_records)
 
-        # 4. Create Chunks
-        file_chunks_records = [
-            Chunk(
-                chunk_project_id=project.id,
-                chunk_asset_id=asset_id,
-                chunk_content=chunk.page_content,
-                chunk_metadata=chunk.metadata,
-                chunk_order=i+1
-            )
-            for i, chunk in enumerate(file_chunks)
-        ]
-        
-        chunk_model = ChunkModel(db_client, self.app_setting)
+        if len(all_chunks_records) == 0:
+             return False, ResponceMessagesEnum.FILE_PROCESSING_FAILED.value, None, no_files_processed, no_files_chunked
+             
+        chunk_model = ChunkRepository(db_client, self.app_setting)
         
         if do_reset:
            _ = await chunk_model.delete_chunks_by_project_id(project.id)
         
-        no_chunks_inserted = await chunk_model.insert_many_chunks(file_chunks_records)
+        no_chunks_inserted = await chunk_model.insert_many_chunks(all_chunks_records)
         
-        return True, ResponceMessagesEnum.FILE_PROCESSING_SUCCESS.value, no_chunks_inserted
-    
-   
+        return True, ResponceMessagesEnum.FILE_PROCESSING_SUCCESS.value, no_chunks_inserted, no_files_processed, no_files_chunked
+        

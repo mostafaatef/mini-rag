@@ -1,7 +1,8 @@
 from .BaseController import BaseController
 from fastapi import UploadFile
 from helpers.config import Settings
-from models import ResponceMessagesEnum, ProjectModel, AssetModel
+from models import ResponceMessagesEnum
+from repositories import ProjectRepository, AssetRepository
 from models.schemes.db_schemes import Asset
 from models.enums import AssetTypesEnum
 from .ProjectController import ProjectController
@@ -16,7 +17,7 @@ class DataController(BaseController):
 
     def validate_uploaded_file(self, file: UploadFile):
         if file.content_type not in self.app_setting.FILE_ALLOWAED_TYPES:
-            return False, ResponceMessagesEnum.FILE_TYPE_NOT_ALLOWAED.value
+            return False, ResponceMessagesEnum.FILE_TYPE_NOT_ALLOWED.value
         
         # Check size using seek/tell as UploadFile.size is not reliable
         file.file.seek(0, 2)
@@ -58,7 +59,7 @@ class DataController(BaseController):
              return False, message, None
 
         # 2. Get Project
-        project_model = ProjectModel(db_client, self.app_setting)
+        project_model = ProjectRepository(db_client, self.app_setting)
         project = await project_model.get_project_or_create_new(project_title)
         
         # 3. Generate Path
@@ -73,7 +74,7 @@ class DataController(BaseController):
             return False, f"Error uploading file: {e}", None
 
         # 5. Create Asset
-        asset_model = AssetModel(db_client, self.app_setting)
+        asset_model = AssetRepository(db_client, self.app_setting)
         asset = Asset(
             asset_project_id=project.id,
             asset_type=AssetTypesEnum.FILE.value,

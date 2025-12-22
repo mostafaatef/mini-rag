@@ -8,15 +8,35 @@ class ProjectModel(BaseDataModel):
         super().__init__(db_client, app_settings)
         self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME]
     
+    @classmethod
+    async def create_instance(cls, db_client: object, app_settings: Settings):
+        instance = cls(db_client, app_settings) #calling init
+        await instance.init_collection()
+        return instance
+    
+    async def init_collection(self):
+        if DatabaseEnum.COLLECTION_PROJECTS_NAME not in await self.db_client.list_collection_names():
+            self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME]
+            await self.create_indexes()
+    
+    async def create_indexes(self):
+        indexes = Project.get_indexes()
+        for index in indexes:
+            await self.collection.create_index(
+                index["key"],
+                name=index["name"],
+                unique=index["unique"]
+            )
+    
     async def create_project(self, project: Project):
         result = await self.collection.insert_one(project.dict(by_alias=True, exclude_none=True))
         project.id = result.inserted_id
         return project
 
-    async def get_project_or_create_new(self, project_id: str):
-        record = await self.collection.find_one({"project_id": project_id})
+    async def get_project_or_create_new(self, project_title: str):
+        record = await self.collection.find_one({"project_title": project_title})
         if record is None:
-            new_project = Project(project_id=project_id)
+            new_project = Project(project_title=project_title)
             new_project = await self.create_project(new_project)
             return new_project
         return Project(**record)

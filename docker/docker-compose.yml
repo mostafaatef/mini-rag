@@ -5,7 +5,7 @@ services:
     ports:
       - "27007:27017"
     volumes:
-      - ./mongodb_data:/data/db
+      - mongodb_data:/data/db
     networks:
       - rag_network_backend
     restart: always
@@ -15,10 +15,13 @@ services:
       timeout: 5s
       retries: 5
     environment:
-      MONGODB_DATABASE: rag
-      MONGODB_USER: rag
-      MONGODB_PASSWORD: rag
+      MONGODB_DATABASE: mini_rag
+      MONGODB_USER: ${MONGODB_USER}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD}
 
 networks:
   rag_network_backend:
     driver: bridge
+
+volumes:
+  mongodb_data:

@@ -69,6 +69,7 @@ export PS1="\[\033[01;32m\]\u@\h:\w\n\[\033[00m\]\$ "
 ### Install the required packages
 
 ```bash
+$ cd src
 $ pip install -r requirements.txt
 ```
 
@@ -89,7 +90,7 @@ Set your environment variables in the `.env` file. Like `OPENAI_API_KEY` value.
 ## Run Docker Compose Services
 
 ```bash
-$ cd docker
+$ cd ../docker
 $ cp .env.example .env
 ```
 
@@ -98,13 +99,14 @@ $ cp .env.example .env
 
 
 ```bash
-$ cd docker
+$ cd ../docker
 $ sudo docker compose up -d
 ```
 
 ## Run the FastAPI server
 
 ```bash
+$ cd ../src
 $ uvicorn main:app --reload --host 0.0.0.0 --port 5000
 ```
 

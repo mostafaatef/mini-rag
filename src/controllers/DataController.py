@@ -1,10 +1,13 @@
 from .BaseController import BaseController
 from fastapi import UploadFile
 from helpers.config import Settings
-from models import ResponceMessagesEnum
+from models import ResponceMessagesEnum, ProjectModel, AssetModel
+from models.schemes.db_schemes import Asset
+from models.enums import AssetTypesEnum
 from .ProjectController import ProjectController
 import re   
 import os
+import aiofiles
 
 class DataController(BaseController):
     def __init__(self, app_setting: Settings):
@@ -47,4 +50,39 @@ class DataController(BaseController):
         #replace spaces with _
         clean_file_name = clean_file_name.replace(' ', '_')
         return clean_file_name
+
+    async def handle_file_upload(self, project_title: str, file: UploadFile, db_client):
+        # 1. Validate
+        is_valid, message = self.validate_uploaded_file(file)
+        if not is_valid:
+             return False, message, None
+
+        # 2. Get Project
+        project_model = ProjectModel(db_client, self.app_setting)
+        project = await project_model.get_project_or_create_new(project_title)
+        
+        # 3. Generate Path
+        file_path, asset_name = self.generate_unique_file_path(file.filename, project_title)
+        
+        # 4. Save File
+        try:
+            async with aiofiles.open(file_path, "wb") as out_file:
+                 while chunk := await file.read(self.app_setting.FILE_CHUNK_SIZE):
+                     await out_file.write(chunk)
+        except Exception as e:
+            return False, f"Error uploading file: {e}", None
+
+        # 5. Create Asset
+        asset_model = AssetModel(db_client, self.app_setting)
+        asset = Asset(
+            asset_project_id=project.id,
+            asset_type=AssetTypesEnum.FILE.value,
+            asset_name=asset_name,
+            asset_size=os.path.getsize(file_path),
+            asset_path=file_path,
+            asset_metadata={"file_path": file_path}
+        )
+        asset_record = await asset_model.create_asset(asset)
+        
+        return True, ResponceMessagesEnum.FILE_UPLOAD_SUCCESS.value, str(asset_record.id)
     

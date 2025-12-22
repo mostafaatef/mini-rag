@@ -9,7 +9,7 @@ class Chunk(BaseModel):
     chunk_metadata: dict
     chunk_order: int = Field(..., gt=0)
     chunk_project_id: ObjectId
-    chunk_file_id: str 
+    chunk_asset_id: str 
 
     class Config:
         arbitrary_types_allowed = True
@@ -27,9 +27,9 @@ class Chunk(BaseModel):
             {
                 "key":[
                     ("chunk_project_id", 1),
-                    ("chunk_file_id", 1)
+                    ("chunk_asset_id", 1)
                 ],
-                "name": "chunk_project_id_chunk_file_id_index_1",
+                "name": "chunk_project_id_chunk_asset_id_index_1",
                 "unique": False
             }
         ]                   

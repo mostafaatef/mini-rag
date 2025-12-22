@@ -3,6 +3,7 @@ from fastapi import FastAPI, Response
 from routes import base, data
 from motor.motor_asyncio import AsyncIOMotorClient
 from helpers.config import get_settings
+from models import ProjectModel, ChunkModel, AssetModel
 
 app = FastAPI()
 
@@ -11,6 +12,11 @@ async def startup():
     settings = get_settings()
     app.mongodb_connection = AsyncIOMotorClient(settings.MONGODB_URL)
     app.mongodb_db_client = app.mongodb_connection[settings.MONGODB_DB]
+
+    # Initialize DB Indexes
+    await ProjectModel.init_indexes(app.mongodb_db_client)
+    await AssetModel.init_indexes(app.mongodb_db_client)
+    await ChunkModel.init_indexes(app.mongodb_db_client)
 
 @app.on_event("shutdown")
 async def shutdown():

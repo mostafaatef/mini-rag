@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 class RequestProcessor(BaseModel):
-    file_id: str
+    asset_id: str
     chunk_size: Optional[int] = 100
     chunk_overlap: Optional[int] = 20
     do_reset: Optional[bool] = False

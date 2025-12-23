@@ -63,6 +63,15 @@ class AssetRepository(BaseRepository):
             assets.append(Asset(**asset_doc))
         return assets
 
-    async def delete_asset_by_id(self, asset_id: str):
-        result = await self.collection.delete_one({"id": ObjectId(asset_id)})
+    async def get_asset_by_project_id_and_name(self, asset_project_id: str, asset_name: str):
+        try:
+            record = await self.collection.find_one({"asset_project_id": ObjectId(asset_project_id),"asset_name": asset_name})
+        except InvalidId:
+            return None
+        if record is None:
+            return None
+        return Asset(**record)
+    
+    async def delete_asset_by_project_id_and_id(self, asset_project_id: str, asset_id: str):
+        result = await self.collection.delete_one({"asset_project_id": ObjectId(asset_project_id),"_id": ObjectId(asset_id)})
         return result.deleted_count

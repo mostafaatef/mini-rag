@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     GENERATION_MAX_OUTPUT_TOKENS: int = None
     GENERATION_TEMPERATURE: float = None
 
+    VECTOR_DB_BACKEND: str
+    VECTOR_DB_PATH: str
+    VECTOR_DB_DISTANCE_METHOD: str = None
+
 
 def get_settings():
     return Settings()

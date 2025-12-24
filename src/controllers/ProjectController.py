@@ -1,7 +1,7 @@
 from .BaseController import BaseController
 from fastapi import UploadFile
-from helpers.config import Settings
-from models import ResponceMessagesEnum
+from src.helpers.config import Settings
+from src.models import ResponceMessagesEnum
 import os
 
 class ProjectController(BaseController):

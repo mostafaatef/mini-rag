@@ -3,13 +3,13 @@ from .ProjectController import ProjectController
 from langchain_community.document_loaders import TextLoader
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from models.enums import ProcessingEnum
+from src.models.enums import ProcessingEnum
 
 from fastapi import UploadFile
-from helpers.config import Settings
-from models import ResponceMessagesEnum
-from repositories import ProjectRepository, ChunkRepository, AssetRepository
-from models.schemes.db_schemes import Chunk
+from src.helpers.config import Settings
+from src.models import ResponceMessagesEnum
+from src.repositories import ProjectRepository, ChunkRepository, AssetRepository
+from src.models.schemes.db_schemes import Chunk
 import os
 import logging
 

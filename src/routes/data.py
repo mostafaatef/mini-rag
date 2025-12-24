@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, File, UploadFile, status, Request
 from fastapi.responses import JSONResponse
-from models.schemes.gen_schemes.ProcessingRequest import ProcessingRequest
-from helpers.config import get_settings, Settings
-from controllers import DataController, ProcessingController    
+from src.models.schemes.gen_schemes.ProcessingRequest import ProcessingRequest
+from src.helpers.config import get_settings, Settings
+from src.controllers import DataController, ProcessingController    
 
 data_router = APIRouter(
     prefix="/api/v1/data",

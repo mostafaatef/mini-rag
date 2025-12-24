@@ -1,7 +1,7 @@
 from .BaseRepository import BaseRepository
-from models.schemes.db_schemes.asset import Asset
-from helpers.config import Settings
-from models.enums.DatabaseEnum import DatabaseEnum
+from src.models.schemes.db_schemes.asset import Asset
+from src.helpers.config import Settings
+from src.models.enums.DatabaseEnum import DatabaseEnum
 from bson import ObjectId
 from bson.errors import InvalidId
 

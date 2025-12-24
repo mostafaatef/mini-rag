@@ -1,7 +1,7 @@
 from .BaseRepository import BaseRepository
-from helpers.config import Settings
-from models.schemes.db_schemes.project import Project
-from models.enums.DatabaseEnum import DatabaseEnum
+from src.helpers.config import Settings
+from src.models.schemes.db_schemes.project import Project
+from src.models.enums.DatabaseEnum import DatabaseEnum
 
 class ProjectRepository(BaseRepository):
     def __init__(self, db_client: object, app_settings: Settings):

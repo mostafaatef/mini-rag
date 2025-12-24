@@ -1,4 +1,4 @@
-from helpers.config import Settings
+from src.helpers.config import Settings
 
 class BaseRepository:
     def __init__(self, db_client: object, app_settings: Settings):

@@ -1,10 +1,10 @@
 from .BaseController import BaseController
 from fastapi import UploadFile
-from helpers.config import Settings
-from models import ResponceMessagesEnum
-from repositories import ProjectRepository, AssetRepository
-from models.schemes.db_schemes import Asset
-from models.enums import AssetTypesEnum
+from src.helpers.config import Settings
+from src.models import ResponceMessagesEnum
+from src.repositories import ProjectRepository, AssetRepository
+from src.models.schemes.db_schemes import Asset
+from src.models.enums import AssetTypesEnum
 from .ProjectController import ProjectController
 import re   
 import os

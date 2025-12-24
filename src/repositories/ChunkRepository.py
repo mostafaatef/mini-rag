@@ -1,8 +1,8 @@
 from .BaseRepository import BaseRepository
 from typing import List
-from helpers.config import Settings
-from models.schemes.db_schemes.chunk import Chunk
-from models.enums.DatabaseEnum import DatabaseEnum
+from src.helpers.config import Settings
+from src.models.schemes.db_schemes.chunk import Chunk
+from src.models.enums.DatabaseEnum import DatabaseEnum
 from bson import ObjectId
 from pymongo import InsertOne
 

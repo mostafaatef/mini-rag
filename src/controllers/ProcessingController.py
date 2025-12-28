@@ -17,20 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessingController(BaseController):
-    def __init__(self, project_id: str, app_setting: Settings):
+    def __init__(self, project_title: str, app_setting: Settings):
         super().__init__(app_setting)
-        self.project_id = project_id
-        self.project_path = ProjectController(app_setting).get_project_path(project_id)
+        self.project_title = project_title
+        self.project_path = ProjectController(app_setting).get_project_path(
+            project_title
+        )
 
-    def get_asset_extension(self, asset_id: str):
-        return asset_id.split(".")[-1]
+    def get_asset_extension(self, asset_name: str):
+        return asset_name.split(".")[-1]
 
-    def get_document_loader(self, asset_id: str):
-        file_extension = self.get_asset_extension(asset_id)
-        file_path = os.path.join(self.project_path, asset_id)
+    def get_document_loader(self, asset_name: str):
+        file_extension = self.get_asset_extension(asset_name)
+        file_path = os.path.join(self.project_path, asset_name)
 
         logger.debug(
-            f"Processing file: {asset_id}, Path: {file_path}, Extension: {file_extension}"
+            f"Processing file: {asset_name}, Path: {file_path}, Extension: {file_extension}"
         )
 
         if not os.path.exists(file_path):

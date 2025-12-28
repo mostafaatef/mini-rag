@@ -67,7 +67,23 @@ class OllamaProvider(BaseLLMProvider):
             ):
                 self.logger.error("Ollama generation response is empty")
                 return None
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            # Check if the model echoed the prompt (common with some Ollama models/configs)
+            last_message_content = messages[-1]["content"] if messages else ""
+            if (
+                content
+                and last_message_content
+                and content.strip().startswith(last_message_content.strip()[:50])
+            ):  # Check first 50 chars to avoid full strings comparison issues
+                # Logic: If content starts with the prompt, likely it echoed.
+                # However, exact match might fail due to whitespace.
+                # Let's try to remove the prompt part if it seems to be a prefix.
+                if content.strip().startswith(last_message_content.strip()):
+                    content = content.strip()[
+                        len(last_message_content.strip()) :
+                    ].strip()
+
+            return content
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             return None

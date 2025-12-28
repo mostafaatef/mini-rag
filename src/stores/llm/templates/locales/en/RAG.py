@@ -28,6 +28,7 @@ footer_prompt = Template(
     "\n".join(
         [
             "Question: $query",
+            "",
             "Answer:",
         ]
     )

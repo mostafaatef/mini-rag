@@ -6,6 +6,7 @@ class LLMEnum(Enum):
     COHERE = "COHERE"
     ANTHROPIC = "ANTHROPIC"
     GOOGLE = "GOOGLE"
+    OLLAMA = "OLLAMA"
 
 
 class OpenAIEnum(Enum):
@@ -25,6 +26,7 @@ class CohereEnum(Enum):
 class GoogleEnum(Enum):
     USER = "user"
     MODEL = "model"
+    SYSTEM = "system"
     DOCUMENT_INPUT_TYPE = "retrieval_document"
     QUERY_INPUT_TYPE = "retrieval_query"
 

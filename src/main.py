@@ -5,20 +5,22 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi import FastAPI, Response
-from src.routes import base, data
+from src.routes import base, data, nlp
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.helpers.config import get_settings
 from src.repositories import ProjectRepository, ChunkRepository, AssetRepository
 from src.stores.llm.LLMProviderFactory import LLMProviderFactory
+from src.stores.vectordbs.VectorDBProviderFactory import VectorDBProviderFactory
+from src.stores.llm.templates.template_parser import TemplateParser
+from contextlib import asynccontextmanager
 
-app = FastAPI()
 
-
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     settings = get_settings()
     app.mongodb_connection = AsyncIOMotorClient(settings.MONGODB_URL)
     app.mongodb_db_client = app.mongodb_connection[settings.MONGODB_DB]
+    app.app_settings = settings
 
     # Initialize DB Indexes
     await ProjectRepository.init_indexes(app.mongodb_db_client)
@@ -38,14 +40,22 @@ async def startup():
         settings.EMBEDDING_MODEL_ID, settings.EMBEDDING_MODEL_SIZE
     )
 
+    # Initialize VectorDB Provider
+    vector_db_provider_factory = VectorDBProviderFactory(settings)
+    app.vector_db_provider = vector_db_provider_factory.create_provider(
+        settings.VECTOR_DB_BACKEND
+    )
+    app.vector_db_provider.connect()
 
-@app.on_event("shutdown")
-async def shutdown():
+    app.template_parser = TemplateParser(language=settings.DEFAULT_LANG)
+
+    yield
+
     app.mongodb_connection.close()
+    app.vector_db_provider.disconnect()
 
 
-app.include_router(base.base_router)
-app.include_router(data.data_router)
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/api/v1/health")
@@ -56,3 +66,8 @@ async def health_check():
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return Response(status_code=204)
+
+
+app.include_router(base.base_router)
+app.include_router(data.data_router)
+app.include_router(nlp.nlp_router)

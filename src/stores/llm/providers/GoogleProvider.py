@@ -2,7 +2,8 @@ from .BaseLLMProvider import BaseLLMProvider
 from ..LLMEnum import GoogleEnum, InputType
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 except ImportError:
     genai = None
 
@@ -23,11 +24,13 @@ class GoogleProvider(BaseLLMProvider):
         )
 
         if genai:
-            genai.configure(api_key=self.api_key)
+            self.client = genai.Client(api_key=self.api_key)
         else:
+            self.client = None
             self.logger.warning(
-                "Google Generative AI library not found. GoogleProvider disabled."
+                "Google GenAI library not found. GoogleProvider disabled."
             )
+        self.enums = GoogleEnum
 
     def generate_response(
         self,
@@ -40,70 +43,122 @@ class GoogleProvider(BaseLLMProvider):
             self.logger.error("Google generation model is not initialized")
             return None
 
+        if not self.client:
+            self.logger.error("Google GenAI client is not initialized")
+            return None
+
         if not max_output_tokens:
             max_output_tokens = self.default_generation_max_output_tokens
         if not temperature:
             temperature = self.default_generation_temperature
 
         # Prepare history for Gemini
-        # Gemini expects history as a list of contents: [{"role": "user", "parts": ["text"]}, ...]
-        # We assume chat_history comes in as a list of dicts: {"role": ..., "content": ...}
+        # New SDK supports standard message format but let's stick to simple Content objects or equivalent
+        # For simplicity, we can pass chat history but the new generate_content is stateless unless using chats.
+        # Let's assume stateless generate_content with history passed as 'contents' if possible,
+        # or just prompt + query.
 
-        gemini_history = []
+        # However, new SDK `chats.create` is good for history.
+        # Let's try to adapt the history format.
+
+        contents = []
+        system_instruction = None
+
         for msg in chat_history:
             role = msg.get("role")
             content = msg.get("content")
-
             if role == GoogleEnum.USER.value:
-                gemini_history.append({"role": "user", "parts": [content]})
+                contents.append(
+                    types.Content(role="user", parts=[types.Part(text=content)])
+                )
             elif role == GoogleEnum.MODEL.value:
-                gemini_history.append({"role": "model", "parts": [content]})
-            # Ignore system messages or others as Gemini Chat mainly supports user/model turns strictly in some versions
+                contents.append(
+                    types.Content(role="model", parts=[types.Part(text=content)])
+                )
+            elif role == GoogleEnum.SYSTEM.value:
+                system_instruction = content
 
-        # Configure the model
-        model = genai.GenerativeModel(self.generation_model_id)
-
-        try:
-            # Start chat session
-            chat = model.start_chat(history=gemini_history)
-
-            generation_config = genai.types.GenerationConfig(
-                max_output_tokens=max_output_tokens, temperature=temperature
+        # Add current query
+        contents.append(
+            types.Content(
+                role="user", parts=[types.Part(text=self.process_input(query))]
             )
+        )
 
-            response = chat.send_message(
-                self.process_input(query), generation_config=generation_config
-            )
+        import time
 
-            if not response or not response.text:
-                self.logger.error("Google generation response is empty")
+        retries = 3
+        base_delay = 2
+
+        for attempt in range(retries):
+            try:
+                config = types.GenerateContentConfig(
+                    max_output_tokens=max_output_tokens,
+                    temperature=temperature,
+                    system_instruction=system_instruction,
+                )
+
+                # Using models.generate_content for simpler stateless call with full history context
+                response = self.client.models.generate_content(
+                    model=self.generation_model_id, contents=contents, config=config
+                )
+
+                if not response or not response.text:
+                    self.logger.error("Google generation response is empty")
+                    return None
+
+                return response.text
+
+            except Exception as e:
+                error_str = str(e)
+                if (
+                    "429" in error_str or "RESOURCE_EXHAUSTED" in error_str
+                ) and attempt < retries - 1:
+                    sleep_time = base_delay * (2**attempt)
+                    self.logger.warning(
+                        f"Google Rate Limit Hit. Retrying in {sleep_time}s... (Attempt {attempt + 1}/{retries})"
+                    )
+                    time.sleep(sleep_time)
+                    continue
+
+                self.logger.error(f"Error generating response: {error_str}")
                 return None
-
-            return response.text
-
-        except Exception as e:
-            self.logger.error(f"Error generating response: {str(e)}")
-            return None
 
     def generate_embedding(self, text: str, input_type: str = None) -> list:
         if not self.embedding_model_id:
             self.logger.error("Google embedding model is not initialized")
             return None
+
+        if not self.client:
+            self.logger.error("Google GenAI client is not initialized")
+            return None
+
+        # Map input_type to new SDK types if needed, or string "RETRIEVAL_DOCUMENT" etc.
+        # Check LLMEnum values, they are likely strings "RETRIEVAL_DOCUMENT" etc.
+        # New SDK expects lowercase often? Or enum?
+        # Let's assume strings work or we verify.
+        # Actually GoogleEnum.DOCUMENT_INPUT_TYPE might be "RETRIEVAL_DOCUMENT".
+
+        task_type = (
+            "RETRIEVAL_DOCUMENT"
+            if input_type == InputType.DOCUMENT.value
+            else "RETRIEVAL_QUERY"
+        )
+
         try:
-            result = genai.embed_content(
+            result = self.client.models.embed_content(
                 model=self.embedding_model_id,
-                content=text,
-                task_type=GoogleEnum.DOCUMENT_INPUT_TYPE.value
-                if input_type == InputType.DOCUMENT.value
-                else GoogleEnum.QUERY_INPUT_TYPE.value,
-                title=None,  # Title is optional/needed for retrieval_document in some cases but generic here
+                contents=text,
+                config=types.EmbedContentConfig(task_type=task_type, title=None),
             )
 
-            if not result or "embedding" not in result:
+            if not result or not result.embeddings:
                 self.logger.error("Google embedding response is empty")
                 return None
 
-            return result["embedding"]
+            # result.embeddings is a list of embeddings (one per content). We sent one string.
+            return result.embeddings[0].values
+
         except Exception as e:
             self.logger.error(f"Error generating embedding: {str(e)}")
         return None

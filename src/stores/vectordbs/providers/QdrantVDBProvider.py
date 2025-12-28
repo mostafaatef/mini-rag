@@ -7,9 +7,10 @@ from typing import List, Optional
 
 from .BaseVDBProvider import BaseVectorDBProvider
 from ..VectorDBEnums import VectorDBEnum, DistanceMethodEnum
+from src.models.schemes.db_schemes.chunk import RetrievedChunkIndex
 
 
-class QdrantVDB(BaseVectorDBProvider):
+class QdrantVDBProvider(BaseVectorDBProvider):
     def __init__(self, db_path: str, distance_method: DistanceMethodEnum):
         super().__init__(db_path, distance_method)
         self.distance_method = None
@@ -26,8 +27,27 @@ class QdrantVDB(BaseVectorDBProvider):
         self.logger.info("QdrantVDB initialized")
 
     def connect(self):
-        self.client = QdrantClient(path=self.db_path, distance=self.distance_method)
-        self.logger.info("QdrantVDB connected")
+        import time
+
+        retries = 3
+        for i in range(retries):
+            try:
+                self.client = QdrantClient(
+                    path=self.db_path, distance=self.distance_method
+                )
+                self.logger.info("QdrantVDB connected")
+                return
+            except Exception as e:
+                if i < retries - 1:
+                    self.logger.warning(
+                        f"Connection failed (attempt {i + 1}/{retries}), retrying in 1s: {e}"
+                    )
+                    time.sleep(1)
+                else:
+                    self.logger.error(
+                        f"Failed to connect to QdrantVDB after {retries} attempts"
+                    )
+                    raise e
 
     def disconnect(self):
         if self.client:
@@ -40,7 +60,7 @@ class QdrantVDB(BaseVectorDBProvider):
         return self.client.get_collections()
 
     def get_collection_info(self, collection_name: str) -> dict:
-        return self.client.get_collection(collection_name)
+        return self.client.get_collection(collection_name).dict()
 
     def delete_collection(self, collection_name: str):
         if self.is_collection_exists(collection_name):
@@ -143,13 +163,28 @@ class QdrantVDB(BaseVectorDBProvider):
         vector: List[float],
         metadatas: Optional[List[dict]] = None,
         limit: Optional[int] = 10,
-    ):
+    ) -> List[RetrievedChunkIndex]:
         if not self.is_collection_exists(collection_name):
             self.logger.error(f"Collection {collection_name} does not exist")
-            return False
-        return self.client.search(
+            return None
+
+        results = self.client.search(
             collection_name=collection_name,
             query_vector=vector,
             limit=limit,
             query_filter=metadatas,
         )
+
+        if not results:
+            return None
+
+        retrieved_chunk_indices = []
+        for result in results:
+            retrieved_chunk_index = RetrievedChunkIndex(
+                **{
+                    "text": result.payload["text"],
+                    "score": result.score,
+                }
+            )
+            retrieved_chunk_indices.append(retrieved_chunk_index)
+        return retrieved_chunk_indices

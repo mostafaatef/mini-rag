@@ -30,7 +30,7 @@ class BaseVectorDBProvider(VectorDBInterface):
     def disconnect(self):
         pass
 
-    def list_collections(self) -> list:
+    def list_all_collections(self) -> list:
         pass
 
     def create_collection(

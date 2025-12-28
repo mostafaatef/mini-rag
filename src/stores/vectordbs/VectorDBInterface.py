@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
+from src.models.schemes.db_schemes.chunk import RetrievedChunkIndex
 
 
 class VectorDBInterface(ABC):
@@ -63,5 +64,5 @@ class VectorDBInterface(ABC):
         vector: List[float],
         metadatas: Optional[List[dict]] = None,
         limit: Optional[int] = 10,
-    ):
+    ) -> List[RetrievedChunkIndex]:
         pass

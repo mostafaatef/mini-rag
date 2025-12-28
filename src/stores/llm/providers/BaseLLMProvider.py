@@ -31,5 +31,5 @@ class BaseLLMProvider(LLMInterface):
     def process_input(self, text: str) -> str:
         return text[: self.default_input_max_characters].strip()
 
-    def construct_prompt(self, query: str, role: str) -> dict:
-        return {"role": role, "content": self.process_input(query)}
+    def construct_prompt(self, prompt: str, role: str) -> dict:
+        return {"role": role, "content": self.process_input(prompt)}

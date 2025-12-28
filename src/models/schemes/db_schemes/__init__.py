@@ -1,5 +1,5 @@
 from .project import Project
-from .chunk import Chunk
+from .chunk import Chunk, RetrievedChunkIndex
 from .asset import Asset
 
 __all__ = [

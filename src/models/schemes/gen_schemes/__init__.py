@@ -1,5 +1,5 @@
-from .ProcessingRequest import ProcessingRequest
+from .AssetRequest import AssetRequest
 
 __all__ = [
-    "ProcessingRequest",
+    "AssetRequest",
 ]

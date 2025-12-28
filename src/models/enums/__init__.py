@@ -1,10 +1,10 @@
-from .ResponceEnum import ResponceMessagesEnum
+from .ResponseEnum import ResponseMessagesEnum
 from .ProcessingEnum import ProcessingEnum
 from .DatabaseEnum import DatabaseEnum
 from .AssetTypesEnum import AssetTypesEnum
 
 __all__ = [
-    "ResponceMessagesEnum",
+    "ResponseMessagesEnum",
     "ProcessingEnum",
     "DatabaseEnum",
     "AssetTypesEnum",

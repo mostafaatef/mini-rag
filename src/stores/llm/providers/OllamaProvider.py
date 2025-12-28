@@ -4,11 +4,11 @@ from openai import OpenAI
 import httpx
 
 
-class OpenAIProvider(BaseLLMProvider):
+class OllamaProvider(BaseLLMProvider):
     def __init__(
         self,
-        api_key: str,
-        base_url: str = None,
+        base_url: str,
+        api_key: str = "ollama",  # Ollama doesn't require an API key usually
         default_input_max_characters: int = 1000,
         default_generation_max_output_tokens: int = 1000,
         default_generation_temperature: float = 0.1,
@@ -35,10 +35,10 @@ class OpenAIProvider(BaseLLMProvider):
         temperature: float = None,
     ) -> str:
         if not self.client:
-            self.logger.error("OpenAI client is not initialized")
+            self.logger.error("Ollama client is not initialized")
             return None
         if not self.generation_model_id:
-            self.logger.error("OpenAI generation model is not initialized")
+            self.logger.error("Ollama generation model is not initialized")
             return None
 
         if not max_output_tokens:
@@ -50,6 +50,8 @@ class OpenAIProvider(BaseLLMProvider):
         messages = chat_history + [self.construct_prompt(query, OpenAIEnum.USER.value)]
 
         try:
+            # Note: Ollama might handle max_tokens differently or ignore it depending on version,
+            # but standard OpenAI client sends it.
             response = self.client.chat.completions.create(
                 model=self.generation_model_id,
                 messages=messages,
@@ -63,19 +65,19 @@ class OpenAIProvider(BaseLLMProvider):
                 or not response.choices[0].message
                 or not response.choices[0].message.content
             ):
-                self.logger.error("OpenAI generation response is empty")
+                self.logger.error("Ollama generation response is empty")
                 return None
             return response.choices[0].message.content
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             return None
 
-    def generate_embedding(self, text: str) -> list:
+    def generate_embedding(self, text: str, input_type: str = None) -> list:
         if not self.client:
-            self.logger.error("OpenAI client is not initialized")
+            self.logger.error("Ollama client is not initialized")
             return None
         if not self.embedding_model_id:
-            self.logger.error("OpenAI embedding model is not initialized")
+            self.logger.error("Ollama embedding model is not initialized")
             return None
         try:
             response = self.client.embeddings.create(
@@ -87,7 +89,7 @@ class OpenAIProvider(BaseLLMProvider):
                 or not response.data[0]
                 or not response.data[0].embedding
             ):
-                self.logger.error("OpenAI embedding response is empty")
+                self.logger.error("Ollama embedding response is empty")
                 return None
             return response.data[0].embedding
         except Exception as e:

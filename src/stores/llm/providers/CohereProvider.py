@@ -30,6 +30,8 @@ class CohereProvider(BaseLLMProvider):
             self.client = None
             self.logger.warning("Cohere library not found. CohereProvider disabled.")
 
+        self.enums = CohereEnum
+
     def generate_response(
         self,
         query: str,
@@ -67,20 +69,23 @@ class CohereProvider(BaseLLMProvider):
         # However, assuming we want to use the Chat endpoint:
 
         provider_chat_history = []
+        preamble = None
         for msg in chat_history:
             role = msg.get("role")
             content = msg.get("content")
             if role == CohereEnum.USER.value:
                 provider_chat_history.append({"role": "USER", "message": content})
-            elif role == CohereEnum.CHATBOT.value:  # Assuming ASSISTANT maps to CHATBOT
+            elif role == CohereEnum.CHATBOT.value:
                 provider_chat_history.append({"role": "CHATBOT", "message": content})
-            # System messages might need specific handling or be preamble
+            elif role == CohereEnum.SYSTEM.value:
+                preamble = content
 
         try:
             response = self.client.chat(
                 model=self.generation_model_id,
                 message=current_message,
                 chat_history=provider_chat_history,
+                preamble=preamble,
                 temperature=temperature,
                 max_tokens=max_output_tokens,
             )

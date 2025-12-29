@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from src.models.schemes.db_schemes.chunk import RetrievedChunkIndex
+from src.models.schemes.mini_rag_db.nosql import RetrievedChunkIndex
 
 
 class VectorDBInterface(ABC):

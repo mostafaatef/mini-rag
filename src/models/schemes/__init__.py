@@ -1,4 +1,4 @@
-from .db_schemes import Project, Chunk, Asset
+from .mini_rag_db.nosql import Project, Asset, Chunk
 from .gen_schemes import AssetRequest
 
 __all__ = [

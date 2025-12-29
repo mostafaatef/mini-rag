@@ -1,5 +1,5 @@
 from .BaseRepository import BaseRepository
-from src.models.schemes.db_schemes.asset import Asset
+from src.models.schemes.mini_rag_db.nosql import Asset
 from src.helpers.config import Settings
 from src.models.enums.DatabaseEnum import DatabaseEnum
 from bson import ObjectId

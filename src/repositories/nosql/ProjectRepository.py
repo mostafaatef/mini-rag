@@ -1,6 +1,6 @@
 from .BaseRepository import BaseRepository
 from src.helpers.config import Settings
-from src.models.schemes.db_schemes.project import Project
+from src.models.schemes.mini_rag_db.nosql import Project
 from src.models.enums.DatabaseEnum import DatabaseEnum
 
 

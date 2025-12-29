@@ -11,16 +11,20 @@ data_router = APIRouter(
 )
 
 
+from src.repositories.db_helper import get_db_client
+
+
 @data_router.post("/upload/{project_title}")
 async def upload_file(
     request: Request,
     project_title: str,
     file: UploadFile = File(...),
     app_setting: Settings = Depends(get_settings),
+    db_client=Depends(get_db_client),
 ):
     data_controller = DataController(app_setting)
     is_valid, message, asset_id = await data_controller.handle_file_upload(
-        project_title, file, request.app.mongodb_db_client
+        project_title, file, db_client
     )
 
     if not is_valid:
@@ -45,6 +49,7 @@ async def process_file(
     project_title: str,
     asset_request: AssetRequest,
     app_setting: Settings = Depends(get_settings),
+    db_client=Depends(get_db_client),
 ):
     asset_id = asset_request.asset_id
     chunk_size = asset_request.chunk_size
@@ -64,7 +69,7 @@ async def process_file(
         chunk_size,
         chunk_overlap,
         do_reset,
-        request.app.mongodb_db_client,
+        db_client,
     )
 
     if not is_valid:

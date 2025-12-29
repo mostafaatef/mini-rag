@@ -1,0 +1,66 @@
+# Alembic Database Migrations
+
+This directory contains Alembic migration scripts for the MiniRAG SQL database.
+
+## Prerequisites
+
+1. **Environment**: Ensure you have the project dependencies installed and your virtual environment activated.
+2. **Database**: Ensure your PostgreSQL database is running.
+    * Default URL: `postgresql://minirag:minirag@localhost:5432/mini_rag`
+    * This is configured in `src/models/schemes/mini_rag_db/sql/alembic.ini`.
+
+## Usage Guidelines
+
+All commands should be run from the **project root directory** (`/mini-rag/`) to ensure proper path resolution.
+
+### 1. Create a New Migration (Autogenerate)
+
+To automatically generate a migration script based on changes detected in your SQLAlchemy models:
+
+```bash
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini revision --autogenerate -m "describe_your_changes"
+```
+
+> **Important**: For autogeneration to work, all your model classes must be imported in `env.py` (or imported by the base class used in `env.py`) so they are registered with `SqlAlchemyBase.metadata`.
+
+### 2. Apply Migrations (Upgrade)
+
+To apply pending migrations and update the database schema to the latest version:
+
+```bash
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini upgrade head
+```
+
+### 3. Revert Migrations (Downgrade)
+
+To undo the last applied migration:
+
+```bash
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini downgrade -1
+```
+
+To downgrade to the base (empty state):
+
+```bash
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini downgrade base
+```
+
+### 4. Check Status
+
+To see the current revision of the database:
+
+```bash
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini current
+```
+
+To view the migration history:
+
+```bash
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini history
+```
+
+## Directory Structure
+
+* `alembic.ini`: Configuration file (located in `src/models/schemes/mini_rag_db/sql/`).
+* `env.py`: Python script that initializes the Alembic environment and connection.
+* `versions/`: Directory where the migration scripts (versions) are stored.

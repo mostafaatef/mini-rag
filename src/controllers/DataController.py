@@ -3,7 +3,7 @@ from fastapi import UploadFile
 from src.helpers.config import Settings
 from src.models import ResponseMessagesEnum
 from src.repositories import ProjectRepository, AssetRepository
-from src.models.schemes.db_schemes import Asset
+from src.models.schemes.mini_rag_db import Asset
 from src.models.enums import AssetTypesEnum
 from .ProjectController import ProjectController
 import re

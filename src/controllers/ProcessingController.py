@@ -9,7 +9,7 @@ from fastapi import UploadFile
 from src.helpers.config import Settings
 from src.models import ResponseMessagesEnum
 from src.repositories import ProjectRepository, ChunkRepository, AssetRepository
-from src.models.schemes.db_schemes import Chunk
+from src.models.schemes.mini_rag_db import Chunk
 import os
 import logging
 

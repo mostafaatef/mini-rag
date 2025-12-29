@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from .BaseVDBProvider import BaseVectorDBProvider
 from ..VectorDBEnums import VectorDBEnum, DistanceMethodEnum
-from src.models.schemes.db_schemes.chunk import RetrievedChunkIndex
+from src.models.schemes.mini_rag_db.nosql import RetrievedChunkIndex
 
 
 class QdrantVDBProvider(BaseVectorDBProvider):

@@ -6,6 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from fastapi import FastAPI, Response
 from src.routes import base, data, nlp
+
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.helpers.config import get_settings
 from src.repositories import ProjectRepository, ChunkRepository, AssetRepository
@@ -13,19 +14,34 @@ from src.stores.llm.LLMProviderFactory import LLMProviderFactory
 from src.stores.vectordbs.VectorDBProviderFactory import VectorDBProviderFactory
 from src.stores.llm.templates.template_parser import TemplateParser
 from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    app.mongodb_connection = AsyncIOMotorClient(settings.MONGODB_URL)
-    app.mongodb_db_client = app.mongodb_connection[settings.MONGODB_DB]
     app.app_settings = settings
 
-    # Initialize DB Indexes
-    await ProjectRepository.init_indexes(app.mongodb_db_client)
-    await AssetRepository.init_indexes(app.mongodb_db_client)
-    await ChunkRepository.init_indexes(app.mongodb_db_client)
+    if settings.DATABASE_TYPE == "SQL":
+        app.postgres_connection = create_async_engine(
+            f"postgresql+asyncpg://{settings.POSTGRES_USERNAME}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_MAIN_DATABASE}"
+        )
+        app.db_engine = create_async_engine(app.postgres_connection.url)
+        app.db_client = sessionmaker(
+            app.db_engine, class_=AsyncSession, expire_on_commit=False
+        )
+        # Initialize DB Indexes (No-op for SQL usually handled by migrations)
+        await ProjectRepository.init_indexes(None)
+        await AssetRepository.init_indexes(None)
+        await ChunkRepository.init_indexes(None)
+    else:
+        app.mongodb_connection = AsyncIOMotorClient(settings.MONGODB_URL)
+        app.mongodb_db_client = app.mongodb_connection[settings.MONGODB_DB]
+        # Initialize DB Indexes
+        await ProjectRepository.init_indexes(app.mongodb_db_client)
+        await AssetRepository.init_indexes(app.mongodb_db_client)
+        await ChunkRepository.init_indexes(app.mongodb_db_client)
 
     # Initialize LLM Provider
     llm_provider_factory = LLMProviderFactory(settings)
@@ -51,7 +67,11 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    app.mongodb_connection.close()
+    if settings.DATABASE_TYPE == "SQL":
+        await app.db_engine.dispose()
+    else:
+        app.mongodb_connection.close()
+
     app.vector_db_provider.disconnect()
 
 

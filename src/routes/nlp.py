@@ -2,10 +2,13 @@ from fastapi import APIRouter, status, Response, Request
 from fastapi.responses import JSONResponse
 import logging
 from src.models.schemes.gen_schemes.NLPRequest import PushRequest, SearchRequest
-from src.repositories.ProjectRepository import ProjectRepository
-from src.repositories.ChunkRepository import ChunkRepository
+from src.repositories import ProjectRepository
+from src.repositories import ChunkRepository
 from src.controllers.NLPController import NLPController
 from src.models.enums.ResponseEnum import ResponseMessagesEnum
+from src.repositories.db_helper import get_db_client
+from src.helpers.config import get_settings, Settings
+from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +19,14 @@ nlp_router = APIRouter(
 
 
 @nlp_router.post("/index/push/{project_title}")
-async def push_index(request: Request, project_title: str, push_request: PushRequest):
+async def push_index(
+    request: Request,
+    project_title: str,
+    push_request: PushRequest,
+    db_client=Depends(get_db_client),
+):
     project_repo = ProjectRepository(
-        db_client=request.app.mongodb_db_client,
+        db_client=db_client,
         app_settings=request.app.app_settings,
     )
     project = await project_repo.get_project_or_create_new(project_title)
@@ -28,7 +36,7 @@ async def push_index(request: Request, project_title: str, push_request: PushReq
             content={"message": ResponseMessagesEnum.PROJECT_NOT_FOUND.value},
         )
     chunk_repo = ChunkRepository(
-        db_client=request.app.mongodb_db_client,
+        db_client=db_client,
         app_settings=request.app.app_settings,
     )
 
@@ -78,9 +86,13 @@ async def push_index(request: Request, project_title: str, push_request: PushReq
 
 
 @nlp_router.get("/index/info/{project_title}")
-async def get_index_info(request: Request, project_title: str):
+async def get_index_info(
+    request: Request,
+    project_title: str,
+    db_client=Depends(get_db_client),
+):
     project_repo = ProjectRepository(
-        db_client=request.app.mongodb_db_client,
+        db_client=db_client,
         app_settings=request.app.app_settings,
     )
     project = await project_repo.get_project_or_create_new(project_title)
@@ -108,10 +120,13 @@ async def get_index_info(request: Request, project_title: str):
 
 @nlp_router.post("/index/search/{project_title}")
 async def search_index(
-    request: Request, project_title: str, search_request: SearchRequest
+    request: Request,
+    project_title: str,
+    search_request: SearchRequest,
+    db_client=Depends(get_db_client),
 ):
     project_repo = ProjectRepository(
-        db_client=request.app.mongodb_db_client,
+        db_client=db_client,
         app_settings=request.app.app_settings,
     )
     project = await project_repo.get_project_or_create_new(project_title)
@@ -148,10 +163,13 @@ async def search_index(
 
 @nlp_router.post("/index/answer/{project_title}")
 async def rag_answer(
-    request: Request, project_title: str, search_request: SearchRequest
+    request: Request,
+    project_title: str,
+    search_request: SearchRequest,
+    db_client=Depends(get_db_client),
 ):
     project_repo = ProjectRepository(
-        db_client=request.app.mongodb_db_client,
+        db_client=db_client,
         app_settings=request.app.app_settings,
     )
     project = await project_repo.get_project_or_create_new(project_title)

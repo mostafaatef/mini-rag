@@ -3,9 +3,10 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-green.svg)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Motor-green.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Pgvector-blue.svg)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)
 
-**Mini-RAG** is a streamlined implementations of a Retrieval-Augmented Generation (RAG) system. It provides a robust backend API for uploading documents, processing them into chunks, and storing them for semantic search and LLM context augmentation.
+**Mini-RAG** is a streamlined implementation of a Retrieval-Augmented Generation (RAG) system. It provides a robust backend API for uploading documents, processing them into chunks, and storing them for semantic search and LLM context augmentation.
 
 ---
 
@@ -14,8 +15,12 @@
 The project follows a clean, modular architecture:
 
 - **Framework**: FastAPI for high-performance, async API endpoints.
-- **Database**: MongoDB (via Motor) for storing Projects, Assets (Files), and Chunks.
-- **Processing**: LangChain for document loading (PDF, TXT) and text splitting.
+- **Database**:
+  - **MongoDB** (via Motor): Stores Projects, Assets (Files), and metadata.
+  - **PostgreSQL** (via SQLAlchemy & Alembic): Relational data and vector storage (via `pgvector`).
+  - **Vector Store**: Supports Qdrant and Pgvector.
+- **Processing**: LangChain for document loading and splitting.
+- **LLM Integration**: Supports OpenAI, Cohere, Google Gemini, and Ollama.
 - **Environment**: Docker support for easy database provisioning.
 
 ### Key Concepts
@@ -35,7 +40,7 @@ The project follows a clean, modular architecture:
 
 ### 2. Setup Database
 
-Start the MongoDB instance using Docker:
+Start the MongoDB and PostgreSQL instances using Docker:
 
 ```bash
 cd docker
@@ -43,6 +48,9 @@ cp .env.example .env
 # Edit .env if necessary
 docker-compose up -d
 ```
+
+- **MongoDB** will be available at `mongodb://localhost:27007` (mapped from 27017).
+- **PostgreSQL** will be available at `postgresql://localhost:5432`.
 
 ### 3. Setup Application
 
@@ -63,14 +71,30 @@ Copy the example environment file and configure your settings:
 ```bash
 cp .env.example .env
 ```
-Ensure `MONGODB_URL` in `.env` matches your Docker configuration (default: `mongodb://localhost:27017`).
 
-### 5. Run Server
+**Critical Settings:**
+- `MONGODB_URL`: Set to `mongodb://localhost:27007` if using the provided Docker setup.
+- `POSTGRES_...`: Configure connection details for PostgreSQL.
+- `GENERATION_BACKEND_LLM` / `EMBEDDING_BACKEND_LLM`: Choose your provider (OPENAI, COHERE, GOOGLE, OLLAMA).
+
+### 5. Database Migrations (PostgreSQL)
+
+Initialize the SQL database schema using Alembic:
+
+```bash
+# Run from the project root (mini-rag/)
+alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini upgrade head
+```
+
+For detailed usage, see [Alembic Guide](src/models/schemes/mini_rag_db/sql/alembic/README).
+
+### 6. Run Server
 
 ```bash
 # From the src directory
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
 Server will start at `http://localhost:8000`. API docs available at `http://localhost:8000/docs`.
 
 ---
@@ -94,13 +118,15 @@ Server will start at `http://localhost:8000`. API docs available at `http://loca
 
 ```
 mini-rag/
-├── docker/             # Docker configuration
+├── docker/                 # Docker configuration
+├── qdrant_db/              # Local Qdrant storage (if applicable)
 ├── src/
-│   ├── main.py         # Application entry point
-│   ├── controllers/    # Business logic (Data, Processing, Project)
-│   ├── models/         # Database models & Schemas
-│   ├── routes/         # API Endpoints
-│   └── helpers/        # Configuration & Utilities
+│   ├── main.py             # Application entry point
+│   ├── controllers/        # Business logic
+│   ├── models/             # Database models & Schemas
+│   │   ├── schemes/        # SQL & NoSQL schemes
+│   ├── routes/             # API Endpoints
+│   └── helpers/            # Configuration & Utilities
 └── README.md
 ```
 

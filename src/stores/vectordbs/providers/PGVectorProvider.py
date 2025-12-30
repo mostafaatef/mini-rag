@@ -1,148 +1,184 @@
-import psycopg2
-from psycopg2.extras import execute_values
-from pgvector.psycopg2 import register_vector
-import uuid
 from typing import List, Optional
 from logging import getLogger
-from ..VectorDBInterface import VectorDBInterface
 from .BaseVDBProvider import BaseVectorDBProvider
-from ..VectorDBEnums import DistanceMethodEnum
+from ..VectorDBEnums import PgVectorDistanceMethodEnums, PgVectorTablesSchemeEnums
+from sqlalchemy.sql import text as sql_text
+from sqlalchemy.ext.asyncio import AsyncEngine
+from src.models.schemes.mini_rag_db.sql import RetrievedChunkIndex
+import json
 
 
 class PGVectorProvider(BaseVectorDBProvider):
-    def __init__(self, db_url: str, distance_method: DistanceMethodEnum):
+    def __init__(
+        self,
+        db_client: AsyncEngine,
+        default_vector_size: int = 768,
+        distance_method: str = None,
+    ):
         # We don't use db_path for PG, but BaseVectorDBProvider expects it.
-        # We can pass None or empty string as it's not used.
         super().__init__(db_path="", distance_method=distance_method)
-        self.db_url = db_url
-        self.conn = None
-        self.logger = getLogger(__name__)
+        self.db_client = db_client
+        self.default_vector_size = default_vector_size
+        self.pgvector_tables_prefix = PgVectorTablesSchemeEnums._PREFIX.value
+        self.logger = getLogger("uvicorn")
+        self._collection_exists_cache = set()
 
         # Map distance enum to PGVector operators
-        # <-> : Euclidean distance (L2)
-        # <=> : Cosine distance
-        # <#> : Inner product (Negative dot product)
         self.distance_operator = "<=>"  # Default Cosine
-        if distance_method == DistanceMethodEnum.L2:
+        if distance_method == PgVectorDistanceMethodEnums.L2.value:
             self.distance_operator = "<->"
-        elif distance_method == DistanceMethodEnum.IP:
-            self.distance_operator = "<#>"  # Note: For inner product, we usually want max, but PG operators sort ASC.
-            # <#> is negative inner product, so sorting ASC gives max inner product.
-        elif distance_method == DistanceMethodEnum.DOT:
+        elif distance_method == PgVectorDistanceMethodEnums.DOT.value:
             self.distance_operator = "<#>"
 
         self.logger.info("PGVectorProvider initialized")
 
-    def connect(self):
+    async def connect(self):
         try:
-            self.conn = psycopg2.connect(self.db_url)
-            # Enable auto-commit for simpler handling, or manage transactions explicitly
-            self.conn.autocommit = True
-
-            # Register the vector type
-            register_vector(self.conn)
-
-            self.logger.info("Connected to PGVector")
-
-            # Ensure extension exists
-            with self.conn.cursor() as cur:
-                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-
+            async with self.db_client.connect() as conn:
+                await conn.execute(sql_text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                await conn.commit()
+            self.logger.info("Connected to PGVector & Extension verified")
+            return True
         except Exception as e:
             self.logger.error(f"Failed to connect to PGVector: {e}")
-            raise e
+            return False
 
-    def disconnect(self):
-        if self.conn:
-            self.conn.close()
+    async def disconnect(self):
+        # SQLAlchemy engine disposal is handled in main.lifespan
+        pass
 
     def _sanitize_table_name(self, name: str) -> str:
-        # Simple sanitization to prevent SQL injection via table names
-        # Assuming collection names are alphanumeric + underscore
-        return "".join(c for c in name if c.isalnum() or c == "_")
+        return "".join(c for c in name if c.isalnum() or c == "_").lower()
 
-    def is_collection_exists(self, collection_name: str) -> bool:
+    async def is_collection_exists(self, collection_name: str) -> bool:
         table_name = self._sanitize_table_name(collection_name)
-        with self.conn.cursor() as cur:
-            cur.execute(
-                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s);",
-                (table_name,),
-            )
-            return cur.fetchone()[0]
+        if table_name in self._collection_exists_cache:
+            return True
 
-    def list_all_collections(self) -> list:
-        # This is tricky as we might have other tables.
-        # We can query tables having a 'embedding' column of type vector.
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                SELECT table_name 
-                FROM information_schema.columns 
-                WHERE udt_name = 'vector' 
-                GROUP BY table_name;
-            """)
-            return [row[0] for row in cur.fetchall()]
+        query = sql_text(
+            "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = :table_name);"
+        )
+        async with self.db_client.connect() as conn:
+            result = await conn.execute(query, {"table_name": table_name})
+            exists = bool(result.scalar())
+            if exists:
+                self._collection_exists_cache.add(table_name)
+            return exists
 
-    def create_collection(
+    async def list_all_collections(self) -> list:
+        # We query tables having an 'embedding' column of type vector.
+        query = sql_text("""
+            SELECT table_name 
+            FROM information_schema.columns 
+            WHERE udt_name = 'vector' 
+            GROUP BY table_name;
+        """)
+        async with self.db_client.connect() as conn:
+            result = await conn.execute(query)
+            return [row[0] for row in result.fetchall()]
+
+    async def create_collection(
         self, collection_name: str, embedding_size: int, do_reset: bool = False
     ) -> bool:
         table_name = self._sanitize_table_name(collection_name)
 
-        if self.is_collection_exists(table_name):
+        if await self.is_collection_exists(table_name):
             if do_reset:
-                self.delete_collection(table_name)
+                await self.delete_collection(table_name)
             else:
-                self.logger.error(f"Collection {table_name} already exists")
+                self.logger.info(f"Collection {table_name} already exists")
                 return False
 
-        # Create table
-        # We store id, text, metadata (jsonb), embedding (vector)
-        query = f"""
+        self.logger.info(f"Creating collection {table_name}")
+
+        query = sql_text(f"""
         CREATE TABLE {table_name} (
-            id UUID PRIMARY KEY,
-            text TEXT,
-            metadata JSONB,
-            embedding vector({embedding_size})
+            {PgVectorTablesSchemeEnums.ID.value} bigserial PRIMARY KEY,
+            {PgVectorTablesSchemeEnums.CHUNK_ID.value} INTEGER,
+            {PgVectorTablesSchemeEnums.TEXT.value} TEXT,
+            {PgVectorTablesSchemeEnums.METADATA.value} JSONB DEFAULT '{{}}',
+            {PgVectorTablesSchemeEnums.VECTOR.value} vector({embedding_size}),
+            FOREIGN KEY ({PgVectorTablesSchemeEnums.CHUNK_ID.value}) REFERENCES chunks(id) ON DELETE CASCADE
         );
-        """
+        """)
+
         try:
-            with self.conn.cursor() as cur:
-                cur.execute(query)
-                # Create an index for faster search (ivfflat is common)
-                # Note: Index creation usually requires some data first for optimal lists,
-                # but we can create HNSW index for better performance/recall tradeoff if pgvector version supports it (>=0.5.0)
-                # Let's try creating HNSW index by default as it's state of the art.
-                try:
-                    cur.execute(
-                        f"CREATE INDEX ON {table_name} USING hnsw (embedding vector_cosine_ops);"
-                    )
-                except Exception as index_err:
-                    self.logger.warning(
-                        f"Could not create HNSW index (maybe pgvector version is old?), falling back or ignoring: {index_err}"
-                    )
+            async with self.db_client.connect() as conn:
+                await conn.execute(query)
+                await conn.commit()
+
+            self._collection_exists_cache.add(table_name)
+
+            # Defer index creation until explicitly requested or after significant data load
+            # for initial performance.
+            # We can create it here if embedding size is small enough, but let's keep it optional
+            # or add a separate method for it.
+            # await self.create_index(collection_name)
 
             return True
         except Exception as e:
             self.logger.error(f"Error creating collection: {e}")
             return False
 
-    def delete_collection(self, collection_name: str):
+    async def create_index(self, collection_name: str):
         table_name = self._sanitize_table_name(collection_name)
-        if self.is_collection_exists(table_name):
-            with self.conn.cursor() as cur:
-                cur.execute(f"DROP TABLE IF EXISTS {table_name};")
 
-    def get_collection_info(self, collection_name: str) -> dict:
-        # Minimal info
+        # Map driver operator to index ops
+        index_ops = "vector_cosine_ops"
+        if self.distance_operator == "<->":
+            index_ops = "vector_l2_ops"
+        elif self.distance_operator == "<#>":
+            index_ops = "vector_ip_ops"
+
+        index_query = sql_text(
+            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_vector ON {table_name} USING hnsw ({PgVectorTablesSchemeEnums.VECTOR.value} {index_ops});"
+        )
+
+        async with self.db_client.connect() as conn:
+            try:
+                await conn.execute(index_query)
+                await conn.commit()
+                self.logger.info(f"HNSW index created for {table_name}")
+            except Exception as index_err:
+                self.logger.warning(f"Could not create HNSW index: {index_err}")
+
+    async def delete_collection(self, collection_name: str):
         table_name = self._sanitize_table_name(collection_name)
-        if not self.is_collection_exists(table_name):
+        query = sql_text(f"DROP TABLE IF EXISTS {table_name};")
+        async with self.db_client.connect() as conn:
+            await conn.execute(query)
+            await conn.commit()
+
+        if table_name in self._collection_exists_cache:
+            self._collection_exists_cache.remove(table_name)
+
+        self.logger.info(f"Collection {table_name} deleted")
+
+    async def get_collection_info(self, collection_name: str) -> dict:
+        table_name = self._sanitize_table_name(collection_name)
+        if not await self.is_collection_exists(table_name):
             return {}
 
-        with self.conn.cursor() as cur:
-            cur.execute(f"SELECT count(*) FROM {table_name};")
-            count = cur.fetchone()[0]
-            return {"name": table_name, "count": count}
+        query_info = sql_text(
+            "SELECT schemaname, tablename, tableowner FROM pg_tables WHERE tablename = :table_name;"
+        )
+        query_count = sql_text(f"SELECT COUNT(*) FROM {table_name};")
 
-    def insert_one(
+        async with self.db_client.connect() as conn:
+            info_result = await conn.execute(query_info, {"table_name": table_name})
+            count_result = await conn.execute(query_count)
+
+            info_row = info_result.fetchone()
+            if not info_row:
+                return {}
+
+            return {
+                "name": table_name,
+                "count": count_result.scalar(),
+                "info": dict(info_row._mapping),
+            }
+
+    async def insert_one(
         self,
         collection_name: str,
         text: str,
@@ -150,7 +186,7 @@ class PGVectorProvider(BaseVectorDBProvider):
         metadatas: Optional[dict] = None,
         record_id: Optional[str] = None,
     ):
-        return self.insert_many(
+        return await self.insert_many(
             collection_name,
             [text],
             [metadatas] if metadatas else None,
@@ -158,7 +194,7 @@ class PGVectorProvider(BaseVectorDBProvider):
             [record_id] if record_id else None,
         )
 
-    def insert_many(
+    async def insert_many(
         self,
         collection_name: str,
         texts: List[str],
@@ -168,39 +204,55 @@ class PGVectorProvider(BaseVectorDBProvider):
         batch_size: Optional[int] = 100,
     ):
         table_name = self._sanitize_table_name(collection_name)
-        if not self.is_collection_exists(table_name):
+        if not await self.is_collection_exists(table_name):
             self.logger.error(f"Collection {table_name} does not exist")
             return False
 
         if metadatas is None:
             metadatas = [None] * len(texts)
         if vectors is None:
-            # This should ideally not happen in this flow as we expect vectors
             return False
-        if record_ids is None:
-            record_ids = [str(uuid.uuid4()) for _ in range(len(texts))]
 
-        data = []
-        for i in range(len(texts)):
-            # Ensure metadata is json compatible dict or None
-            meta = metadatas[i] if metadatas[i] else {}
-            data.append(
-                (record_ids[i], texts[i], psycopg2.extras.Json(meta), vectors[i])
-            )
+        columns = [
+            PgVectorTablesSchemeEnums.CHUNK_ID.value,
+            PgVectorTablesSchemeEnums.TEXT.value,
+            PgVectorTablesSchemeEnums.METADATA.value,
+            PgVectorTablesSchemeEnums.VECTOR.value,
+        ]
+
+        query = sql_text(
+            f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES (:chunk_id, :text, :metadata, CAST(:embedding AS vector))"
+        )
 
         try:
-            with self.conn.cursor() as cur:
-                execute_values(
-                    cur,
-                    f"INSERT INTO {table_name} (id, text, metadata, embedding) VALUES %s",
-                    data,
-                )
+            async with self.db_client.connect() as conn:
+                for i in range(0, len(texts), batch_size):
+                    batch_end = min(i + batch_size, len(texts))
+                    params = []
+                    for j in range(i, batch_end):
+                        meta = metadatas[j] if metadatas[j] else {}
+                        # Extract chunk_id from metadata if available (from NLPController.index_into_vdb)
+                        chunk_id = meta.get("id") or meta.get("_id")
+
+                        params.append(
+                            {
+                                "chunk_id": int(chunk_id)
+                                if isinstance(chunk_id, (int, str))
+                                and str(chunk_id).isdigit()
+                                else None,
+                                "text": texts[j],
+                                "metadata": json.dumps(meta),
+                                "embedding": str(vectors[j]),
+                            }
+                        )
+                    await conn.execute(query, params)
+                await conn.commit()
             return True
         except Exception as e:
             self.logger.error(f"Error inserting records: {e}")
             return False
 
-    def search_by_vector(
+    async def search_by_vector(
         self,
         collection_name: str,
         vector: List[float],
@@ -208,74 +260,44 @@ class PGVectorProvider(BaseVectorDBProvider):
         limit: Optional[int] = 10,
     ):
         table_name = self._sanitize_table_name(collection_name)
-        if not self.is_collection_exists(table_name):
+        if not await self.is_collection_exists(table_name):
             self.logger.error(f"Collection {table_name} does not exist")
-            return False
+            return []
 
-        # Build Metadata Filter (simple equality for now, or use JSONB containment @>)
-        # current interface assumes metadatas is a filter dict?
-        # Interface says 'metadatas: Optional[List[dict]] = None' is query_filter in Qdrant.
-        # Let's assume it's a dict for exact match on fields.
-
-        where_clause = ""
-        params = [vector, limit]
-
-        # NOTE: Handling metadata filter in raw SQL is complex.
-        # For this PoC, we might skip complex filtering or implement basic JSON containment.
-        # Qdrant implementation passed `metadatas` as `query_filter`.
-
-        query = f"""
-        SELECT text, metadata, embedding <=> %s as score, id
-        FROM {table_name}
-        ORDER BY score ASC
-        LIMIT %s;
-        """
-
-        # Note on score: PGVector returns distance. Smaller is better for distance.
-        # But retrieval systems usually expect Similarity (Higher is better).
-        # Cosine Distance = 1 - Cosine Similarity.
-        # So Similarity = 1 - Distance.
+        query = sql_text(f"""
+            SELECT {PgVectorTablesSchemeEnums.TEXT.value}, 
+                   {PgVectorTablesSchemeEnums.METADATA.value}, 
+                   {PgVectorTablesSchemeEnums.VECTOR.value} {self.distance_operator} CAST(:vector AS vector) as distance, 
+                   {PgVectorTablesSchemeEnums.ID.value}
+            FROM {table_name}
+            ORDER BY distance ASC
+            LIMIT :limit;
+        """)
 
         results = []
         try:
-            with self.conn.cursor() as cur:
-                cur.execute(query, (vector, limit))
-                rows = cur.fetchall()
+            async with self.db_client.connect() as conn:
+                result = await conn.execute(
+                    query, {"vector": str(vector), "limit": limit}
+                )
+                rows = result.fetchall()
                 for row in rows:
                     text, metadata, distance, id = row
-                    score = 1 - distance  # Convert to similarity if using cosine
+                    score = (
+                        1 - distance if self.distance_operator == "<=>" else distance
+                    )
 
-                    # Construct a Qdrant-like object or just a plain dict as expected by Controller
-                    # The Controller expects objects with .dict() method or accessing fields?
-                    # Controller: `return [item.dict() for item in result]` (Qdrant returns ScoredPoint)
-                    # We need to return an object that mimics ScoredPoint structure
-
-                    # Wait, Controller code:
-                    # `result = self.vector_client.search_by_vector(...)`
-                    # `return [item.dict() for item in result]`
-
-                    # So we should return a list of objects having a .dict() method.
                     results.append(
-                        ScoredRecord(id=id, score=score, text=text, metadata=metadata)
+                        RetrievedChunkIndex(
+                            id=str(id),
+                            score=score,
+                            text=text,
+                            metadata=metadata,
+                            payload={"text": text, "metadata": metadata},
+                        )
                     )
 
             return results
         except Exception as e:
             self.logger.error(f"Error searching: {e}")
             return []
-
-
-class ScoredRecord:
-    def __init__(self, id, score, text, metadata):
-        self.id = str(id)
-        self.score = score
-        self.payload = {"text": text, "metadata": metadata}
-        self.version = 0  # Dummy
-
-    def dict(self):
-        return {
-            "id": self.id,
-            "score": self.score,
-            "payload": self.payload,
-            "version": self.version,
-        }

@@ -40,11 +40,16 @@ class Settings(BaseSettings):
     GENERATION_TEMPERATURE: Optional[float] = None
 
     VECTOR_DB_BACKEND: str
-    VECTOR_DB_URL: Optional[str] = None
-    VECTOR_DB_PATH: str
+    VECTOR_QDRANT_DB_PATH: str
+    VECTOR_POSTGRES_DB_URL: str
     VECTOR_DB_DISTANCE_METHOD: Optional[str] = None
 
     DEFAULT_LANG: str = "en"
+
+    VECTOR_DB_BACKEND_LITERAL: List[str]
+    EMBEDDING_BACKEND_LLM_LITERAL: List[str]
+    GENERATION_BACKEND_LLM_LITERAL: List[str]
+    DATABASE_TYPE_LITERAL: List[str]
 
 
 def get_settings():

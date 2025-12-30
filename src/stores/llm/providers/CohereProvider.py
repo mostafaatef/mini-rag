@@ -101,6 +101,10 @@ class CohereProvider(BaseLLMProvider):
             return None
 
     def generate_embedding(self, text: str, input_type: str = None) -> list:
+        embeddings = self.generate_embeddings([text], input_type)
+        return embeddings[0] if embeddings else None
+
+    def generate_embeddings(self, texts: list, input_type: str = None) -> list:
         if not self.client:
             self.logger.error("Cohere client is not initialized")
             return None
@@ -112,21 +116,19 @@ class CohereProvider(BaseLLMProvider):
             if input_type == InputType.QUERY.value:
                 search_input_type = CohereEnum.QUERY_INPUT_TYPE.value
 
+            processed_texts = [self.process_input(text) for text in texts]
+
             response = self.client.embed(
                 model=self.embedding_model_id,
-                texts=[self.process_input(text)],
+                texts=processed_texts,
                 input_type=search_input_type,
                 embedding_types=["float"],
             )
-            if (
-                not response
-                or not response.embeddings
-                or not response.embeddings.float
-                or not response.embeddings.float[0]
-            ):
+            if not response or not response.embeddings or not response.embeddings.float:
                 self.logger.error("Cohere embedding response is empty")
                 return None
-            return response.embeddings.float[0]
+
+            return response.embeddings.float
         except Exception as e:
-            self.logger.error(f"Error generating embedding: {str(e)}")
+            self.logger.error(f"Error generating embeddings: {str(e)}")
         return None

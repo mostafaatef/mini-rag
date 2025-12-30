@@ -5,37 +5,37 @@ from src.models.schemes.mini_rag_db.nosql import RetrievedChunkIndex
 
 class VectorDBInterface(ABC):
     @abstractmethod
-    def connect(self):
+    async def connect(self):
         pass
 
     @abstractmethod
-    def disconnect(self):
+    async def disconnect(self):
         pass
 
     @abstractmethod
-    def list_all_collections(self) -> list:
+    async def list_all_collections(self) -> list:
         pass
 
     @abstractmethod
-    def create_collection(
+    async def create_collection(
         self, collection_name: str, embedding_size: int, do_reset: bool = False
     ) -> bool:
         pass
 
     @abstractmethod
-    def is_collection_exists(self, collection_name: str) -> bool:
+    async def is_collection_exists(self, collection_name: str) -> bool:
         pass
 
     @abstractmethod
-    def get_collection_info(self, collection_name: str) -> dict:
+    async def get_collection_info(self, collection_name: str) -> dict:
         pass
 
     @abstractmethod
-    def delete_collection(self, collection_name: str):
+    async def delete_collection(self, collection_name: str):
         pass
 
     @abstractmethod
-    def insert_one(
+    async def insert_one(
         self,
         collection_name: str,
         text: str,
@@ -46,7 +46,7 @@ class VectorDBInterface(ABC):
         pass
 
     @abstractmethod
-    def insert_many(
+    async def insert_many(
         self,
         collection_name: str,
         texts: List[str],
@@ -58,7 +58,7 @@ class VectorDBInterface(ABC):
         pass
 
     @abstractmethod
-    def search_by_vector(
+    async def search_by_vector(
         self,
         collection_name: str,
         vector: List[float],

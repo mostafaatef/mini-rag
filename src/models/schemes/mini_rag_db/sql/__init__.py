@@ -1,1 +1,1 @@
-from .schemes import Project, Asset, Chunk, SqlAlchemyBase
+from .schemes import Project, Asset, Chunk, SqlAlchemyBase, RetrievedChunkIndex

@@ -58,10 +58,29 @@ async def lifespan(app: FastAPI):
 
     # Initialize VectorDB Provider
     vector_db_provider_factory = VectorDBProviderFactory(settings)
+
+    db_client_for_vdb = None
+    app.vector_db_engine = None
+
+    if settings.VECTOR_DB_BACKEND == "PGVECTOR":
+        vdb_url = getattr(settings, "VECTOR_POSTGRES_DB_URL", None)
+        if vdb_url:
+            # Ensure it uses asyncpg driver
+            if "postgresql+asyncpg://" not in vdb_url:
+                vdb_url = vdb_url.replace("postgresql://", "postgresql+asyncpg://")
+            app.vector_db_engine = create_async_engine(vdb_url)
+            db_client_for_vdb = app.vector_db_engine
+        else:
+            db_client_for_vdb = getattr(app, "db_engine", None)
+    elif settings.DATABASE_TYPE == "SQL":
+        db_client_for_vdb = getattr(app, "db_engine", None)
+    else:
+        db_client_for_vdb = getattr(app, "mongodb_db_client", None)
+
     app.vector_db_provider = vector_db_provider_factory.create_provider(
-        settings.VECTOR_DB_BACKEND
+        settings.VECTOR_DB_BACKEND, db_client=db_client_for_vdb
     )
-    app.vector_db_provider.connect()
+    await app.vector_db_provider.connect()
 
     app.template_parser = TemplateParser(language=settings.DEFAULT_LANG)
 
@@ -72,7 +91,10 @@ async def lifespan(app: FastAPI):
     else:
         app.mongodb_connection.close()
 
-    app.vector_db_provider.disconnect()
+    if getattr(app, "vector_db_engine", None):
+        await app.vector_db_engine.dispose()
+
+    await app.vector_db_provider.disconnect()
 
 
 app = FastAPI(lifespan=lifespan)

@@ -25,5 +25,9 @@ class LLMInterface(ABC):
         pass
 
     @abstractmethod
+    def generate_embeddings(self, texts: list, input_type: str = None):
+        pass
+
+    @abstractmethod
     def construct_prompt(self, query: str, role: str):
         pass

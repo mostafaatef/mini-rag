@@ -48,6 +48,15 @@ async def push_index(
         template_parser=request.app.template_parser,
     )
 
+    # 1. Initialize/Reset collection only once
+    await nlp_controller.vector_client.create_collection(
+        collection_name=nlp_controller.create_vdb_collection_name(
+            project.project_title
+        ),
+        embedding_size=request.app.embedding_llm_provider.embedding_model_size,
+        do_reset=push_request.do_reset,
+    )
+
     has_more = True
     page_no = 1
     page_size = 50
@@ -63,8 +72,10 @@ async def push_index(
             has_more = False
             continue
         print(f"DEBUG: Processing {len(chunks)} chunks for page {page_no}")
-        is_indexed = nlp_controller.index_into_vdb(
-            project, chunks, push_request.do_reset
+        is_indexed = await nlp_controller.index_into_vdb(
+            project,
+            chunks,
+            do_reset=False,  # Crucial: Fixed do_reset loop bug
         )
         print(f"DEBUG: Finished indexing page {page_no}")
         page_no += 1
@@ -76,6 +87,10 @@ async def push_index(
                 },
             )
         indexed_chunks += len(chunks)
+
+    # 2. Finalize by creating index (optimized for PGVector)
+    await nlp_controller.create_vdb_index(project)
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -108,7 +123,7 @@ async def get_index_info(
         app_settings=request.app.app_settings,
         template_parser=request.app.template_parser,
     )
-    collection_info = nlp_controller.get_vdb_collection_info(project)
+    collection_info = await nlp_controller.get_vdb_collection_info(project)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -142,7 +157,7 @@ async def search_index(
         app_settings=request.app.app_settings,
         template_parser=request.app.template_parser,
     )
-    search_result = nlp_controller.search_vdb_index(
+    search_result = await nlp_controller.search_vdb_index(
         project, search_request.query, search_request.limit
     )
     if not search_result:
@@ -187,7 +202,7 @@ async def rag_answer(
         template_parser=request.app.template_parser,
     )
 
-    rag_response = nlp_controller.response_to_rag_query(
+    rag_response = await nlp_controller.response_to_rag_query(
         project, search_request.query, search_request.limit
     )
     if rag_response == "GENERATION_FAILED":

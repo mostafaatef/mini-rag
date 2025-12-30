@@ -1,13 +1,13 @@
 from typing import Optional
 from ..VectorDBInterface import VectorDBInterface
-from ..VectorDBEnums import VectorDBEnum, DistanceMethodEnum
+from ..VectorDBEnums import VectorDBEnum
 from logging import getLogger
 from typing import List
 import os
 
 
 class BaseVectorDBProvider(VectorDBInterface):
-    def __init__(self, db_path: str, distance_method: DistanceMethodEnum):
+    def __init__(self, db_path: str, distance_method: str):
         self.db_path = db_path
         self.distance_method = distance_method
         self.client = None
@@ -24,30 +24,30 @@ class BaseVectorDBProvider(VectorDBInterface):
             os.makedirs(target_dir)
         return target_dir
 
-    def connect(self):
+    async def connect(self):
         pass
 
-    def disconnect(self):
+    async def disconnect(self):
         pass
 
-    def list_all_collections(self) -> list:
+    async def list_all_collections(self) -> list:
         pass
 
-    def create_collection(
+    async def create_collection(
         self, collection_name: str, embedding_size: int, do_reset: bool = False
     ):
         pass
 
-    def is_collection_exists(self, collection_name: str) -> bool:
+    async def is_collection_exists(self, collection_name: str) -> bool:
         pass
 
-    def get_collection_info(self, collection_name: str) -> dict:
+    async def get_collection_info(self, collection_name: str) -> dict:
         pass
 
-    def delete_collection(self, collection_name: str):
+    async def delete_collection(self, collection_name: str):
         pass
 
-    def insert_one(
+    async def insert_one(
         self,
         collection_name: str,
         texts: str,
@@ -57,7 +57,7 @@ class BaseVectorDBProvider(VectorDBInterface):
     ):
         pass
 
-    def insert_many(
+    async def insert_many(
         self,
         collection_name: str,
         texts: List[str],
@@ -68,7 +68,7 @@ class BaseVectorDBProvider(VectorDBInterface):
     ):
         pass
 
-    def search_by_vector(
+    async def search_by_vector(
         self,
         collection_name: str,
         vector: List[float],

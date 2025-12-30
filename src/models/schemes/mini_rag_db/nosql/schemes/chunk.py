@@ -32,5 +32,8 @@ class Chunk(BaseModel):
 
 
 class RetrievedChunkIndex(BaseModel):
+    id: Optional[str] = None
     text: str
     score: float
+    metadata: Optional[dict] = None
+    payload: Optional[dict] = None  # Added for compatibility with Qdrant-style objects

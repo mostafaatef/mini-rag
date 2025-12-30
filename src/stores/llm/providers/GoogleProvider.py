@@ -129,6 +129,10 @@ class GoogleProvider(BaseLLMProvider):
                 return None
 
     def generate_embedding(self, text: str, input_type: str = None) -> list:
+        embeddings = self.generate_embeddings([text], input_type)
+        return embeddings[0] if embeddings else None
+
+    def generate_embeddings(self, texts: list, input_type: str = None) -> list:
         if not self.embedding_model_id:
             self.logger.error("Google embedding model is not initialized")
             return None
@@ -137,12 +141,6 @@ class GoogleProvider(BaseLLMProvider):
             self.logger.error("Google GenAI client is not initialized")
             return None
 
-        # Map input_type to new SDK types if needed, or string "RETRIEVAL_DOCUMENT" etc.
-        # Check LLMEnum values, they are likely strings "RETRIEVAL_DOCUMENT" etc.
-        # New SDK expects lowercase often? Or enum?
-        # Let's assume strings work or we verify.
-        # Actually GoogleEnum.DOCUMENT_INPUT_TYPE might be "RETRIEVAL_DOCUMENT".
-
         task_type = (
             "RETRIEVAL_DOCUMENT"
             if input_type == InputType.DOCUMENT.value
@@ -150,9 +148,10 @@ class GoogleProvider(BaseLLMProvider):
         )
 
         try:
+            # New SDK supports list of strings in contents
             result = self.client.models.embed_content(
                 model=self.embedding_model_id,
-                contents=text,
+                contents=texts,
                 config=types.EmbedContentConfig(task_type=task_type, title=None),
             )
 
@@ -160,9 +159,8 @@ class GoogleProvider(BaseLLMProvider):
                 self.logger.error("Google embedding response is empty")
                 return None
 
-            # result.embeddings is a list of embeddings (one per content). We sent one string.
-            return result.embeddings[0].values
+            return [emb.values for emb in result.embeddings]
 
         except Exception as e:
-            self.logger.error(f"Error generating embedding: {str(e)}")
+            self.logger.error(f"Error generating embeddings: {str(e)}")
         return None

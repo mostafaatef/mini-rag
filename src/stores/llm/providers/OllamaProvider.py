@@ -89,6 +89,10 @@ class OllamaProvider(BaseLLMProvider):
             return None
 
     def generate_embedding(self, text: str, input_type: str = None) -> list:
+        embeddings = self.generate_embeddings([text], input_type)
+        return embeddings[0] if embeddings else None
+
+    def generate_embeddings(self, texts: list, input_type: str = None) -> list:
         if not self.client:
             self.logger.error("Ollama client is not initialized")
             return None
@@ -97,17 +101,12 @@ class OllamaProvider(BaseLLMProvider):
             return None
         try:
             response = self.client.embeddings.create(
-                model=self.embedding_model_id, input=text
+                model=self.embedding_model_id, input=texts
             )
-            if (
-                not response
-                or not response.data
-                or not response.data[0]
-                or not response.data[0].embedding
-            ):
+            if not response or not response.data:
                 self.logger.error("Ollama embedding response is empty")
                 return None
-            return response.data[0].embedding
+            return [data.embedding for data in response.data]
         except Exception as e:
-            self.logger.error(f"Error generating embedding: {str(e)}")
+            self.logger.error(f"Error generating embeddings: {str(e)}")
         return None

@@ -107,9 +107,11 @@ class NLPController(BaseController):
                     "document_prompt",
                     {
                         "document_no": idx + 1,
-                        "document_content": doc.get("text")
-                        or doc.get("payload", {}).get("text", "")
-                        or "",
+                        "document_content": self.generator_client.process_input(
+                            doc.get("text")
+                            or doc.get("payload", {}).get("text", "")
+                            or ""
+                        ),
                     },
                 )
                 for idx, doc in enumerate(retrieved_chunk_indices)
@@ -129,6 +131,7 @@ class NLPController(BaseController):
 
         full_prompt = "\n\n".join(
             [
+                f"User Question: {query}\n\nRelevant Documents:",
                 documents_prompt,
                 footer_prompt,
             ]
@@ -137,9 +140,10 @@ class NLPController(BaseController):
         answer = self.generator_client.generate_response(
             query=full_prompt,
             chat_history=chat_history,
-            max_output_tokens=1000,
-            temperature=0.0,
+            max_output_tokens=2048,
+            temperature=0.2,
         )
         if not answer:
-            return None
+            # Generation failed
+            return "GENERATION_FAILED"
         return answer, full_prompt, chat_history

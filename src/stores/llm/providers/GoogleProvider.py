@@ -87,7 +87,7 @@ class GoogleProvider(BaseLLMProvider):
 
         import time
 
-        retries = 3
+        retries = 5
         base_delay = 2
 
         for attempt in range(retries):
@@ -105,6 +105,10 @@ class GoogleProvider(BaseLLMProvider):
 
                 if not response or not response.text:
                     self.logger.error("Google generation response is empty")
+                    with open("/tmp/google_provider_error.log", "w") as f:
+                        f.write(
+                            f"Error: Google generation response is empty. Response object: {response}\n"
+                        )
                     return None
 
                 return response.text

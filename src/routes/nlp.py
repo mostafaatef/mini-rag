@@ -190,6 +190,13 @@ async def rag_answer(
     rag_response = nlp_controller.response_to_rag_query(
         project, search_request.query, search_request.limit
     )
+    if rag_response == "GENERATION_FAILED":
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": ResponseMessagesEnum.PROJECT_VDB_INDEX_RAG_ANSWER_FAILED.value
+            },
+        )
     if not rag_response:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,

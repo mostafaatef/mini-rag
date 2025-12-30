@@ -1,5 +1,6 @@
 from ..LLMInterface import LLMInterface
 from logging import getLogger
+from typing import Union, List
 
 
 class BaseLLMProvider(LLMInterface):
@@ -31,5 +32,7 @@ class BaseLLMProvider(LLMInterface):
     def process_input(self, text: str) -> str:
         return text[: self.default_input_max_characters].strip()
 
-    def construct_prompt(self, prompt: str, role: str) -> dict:
-        return {"role": role, "content": self.process_input(prompt)}
+    def construct_prompt(self, prompt: Union[str, list], role: str) -> dict:
+        if isinstance(prompt, list):
+            prompt = "\n".join(prompt)
+        return {"role": role, "content": prompt}

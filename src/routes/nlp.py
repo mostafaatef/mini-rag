@@ -9,6 +9,7 @@ from src.models.enums.ResponseEnum import ResponseMessagesEnum
 from src.repositories.db_helper import get_db_client
 from src.helpers.config import get_settings, Settings
 from fastapi import Depends
+from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,12 @@ async def push_index(
     page_no = 1
     page_size = 50
     indexed_chunks = 0
+
+    total_chunks_count = await chunk_repo.get_total_chunks_count(project.id)
+    pbar = tqdm(
+        total=total_chunks_count, desc="Indexing chunks in vector database", position=0
+    )
+
     while has_more:
         chunks = await chunk_repo.get_chunks_by_project_id(
             project_id=project.id,
@@ -87,9 +94,10 @@ async def push_index(
                 },
             )
         indexed_chunks += len(chunks)
-
+        pbar.update(len(chunks))
     # 2. Finalize by creating index (optimized for PGVector)
     await nlp_controller.create_vdb_index(project)
+    pbar.close()
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

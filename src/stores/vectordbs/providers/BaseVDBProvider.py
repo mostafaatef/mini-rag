@@ -7,9 +7,17 @@ import os
 
 
 class BaseVectorDBProvider(VectorDBInterface):
-    def __init__(self, db_path: str, distance_method: str):
+    def __init__(
+        self,
+        db_path: str,
+        distance_method: str,
+        default_vector_size: int = 768,
+        index_threshold: int = 1000,
+    ):
         self.db_path = db_path
         self.distance_method = distance_method
+        self.default_vector_size = default_vector_size
+        self.index_threshold = index_threshold
         self.client = None
         self.base_dir = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

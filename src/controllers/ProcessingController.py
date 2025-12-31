@@ -12,8 +12,16 @@ from src.repositories import ProjectRepository, ChunkRepository, AssetRepository
 from src.models.schemes.mini_rag_db import Chunk
 import os
 import logging
+from typing import List
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Document:
+    page_content: str
+    metadata: dict
 
 
 class ProcessingController(BaseController):
@@ -55,9 +63,7 @@ class ProcessingController(BaseController):
             return None
         return loader.load()
 
-    def process_asset_content(
-        self, asset_name: str, chunk_size: int, chunk_overlap: int
-    ):
+    def split_asset_content(self, asset_name: str, chunk_size: int, chunk_overlap: int):
         file_content = self.get_asset_content(asset_name)
         if file_content is None:
             return None
@@ -66,18 +72,49 @@ class ProcessingController(BaseController):
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             length_function=len,
-            is_separator_regex=False,
+            separators=["\n\n", "\n", ".", " ", ""],
         )
 
-        file_content_texts = [record.page_content for record in file_content]
+        # Use LangChain's optimized splitter
+        return text_splitter.split_documents(file_content)
 
-        file_content_metadata = [record.metadata for record in file_content]
+    # The only time I would recommend your custom_texts_splitter over LangChain is if:
+    # Strict Structure: You are processing highly structured data (like a log file or a CSV converted to text) where you must split exactly at the \n separator and nowhere else.
+    # Total Control: You need to implement very specific logic (like adding a special header to every chunk) that LangChain's standard parameters don't support.
+    def custom_texts_splitter(
+        texts: List[str],
+        chunk_size: int,
+        chunk_overlap: int,
+        metadata: List[dict],
+        splitter_tag: str = "\n",
+    ):
+        all_chunks = []
+        for text, meta in zip(texts, metadata):
+            lines = [line.strip() for line in text.split(splitter_tag) if line.strip()]
+            current_chunk = ""
 
-        chunks = text_splitter.create_documents(
-            file_content_texts, metadatas=file_content_metadata
-        )
+            for line in lines:
+                # If adding the next line exceeds size, save current and restart with overlap
+                if (
+                    len(current_chunk) + len(line) + len(splitter_tag) > chunk_size
+                    and current_chunk
+                ):
+                    all_chunks.append(
+                        Document(page_content=current_chunk, metadata=meta)
+                    )
 
-        return chunks
+                    # Handle Overlap: Keep the end of the previous chunk
+                    overlap_text = (
+                        current_chunk[-chunk_overlap:] if chunk_overlap > 0 else ""
+                    )
+                    current_chunk = overlap_text + line + splitter_tag
+                else:
+                    current_chunk += line + splitter_tag
+
+            if current_chunk:
+                all_chunks.append(Document(page_content=current_chunk, metadata=meta))
+
+        return all_chunks
 
     async def handle_asset_processing(
         self,
@@ -116,7 +153,7 @@ class ProcessingController(BaseController):
         for asset_record in asset_records:
             no_files_processed += 1
             logger.debug(f"Processing asset record: {asset_record.asset_name}")
-            file_chunks = self.process_asset_content(
+            file_chunks = self.split_asset_content(
                 asset_record.asset_name, chunk_size, chunk_overlap
             )
 

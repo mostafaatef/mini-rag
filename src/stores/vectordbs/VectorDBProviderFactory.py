@@ -23,15 +23,21 @@ class VectorDBProviderFactory:
     ) -> VectorDBInterface:
         if vector_db_type == VectorDBEnum.QDRANT.value:
             qdrant_path = getattr(self.settings, "VECTOR_QDRANT_DB_PATH", "qdrant_db")
-            db_path = self.base_vdb_provider.get_database_dir(qdrant_path)
+            qdrant_db_client = self.base_vdb_provider.get_database_dir(qdrant_path)
             return QdrantVDBProvider(
-                db_path=db_path,
+                db_client=qdrant_db_client,
                 distance_method=self.settings.VECTOR_DB_DISTANCE_METHOD,
+                index_threshold=getattr(
+                    self.settings, "VECTOR_POSTGRES_INDEX_CREATION_THRESHOLD", 1000
+                ),
             )
         elif vector_db_type == VectorDBEnum.PGVECTOR.value:
             return PGVectorProvider(
                 db_client=db_client,
                 distance_method=self.settings.VECTOR_DB_DISTANCE_METHOD,
+                index_threshold=getattr(
+                    self.settings, "VECTOR_POSTGRES_INDEX_CREATION_THRESHOLD", 1000
+                ),
             )
         else:
             raise ValueError(f"Unknown vector db type: {vector_db_type}")

@@ -1,5 +1,6 @@
 from .BaseLLMProvider import BaseLLMProvider
 from ..LLMEnum import CohereEnum, InputType
+from typing import Optional, List, Union
 
 try:
     import cohere
@@ -99,6 +100,8 @@ class CohereProvider(BaseLLMProvider):
         except Exception as e:
             self.logger.error(f"Error generating response: {str(e)}")
             return None
+
+    # def generate_embedding(self, text: Union[str, List[str]], input_type: str = None) -> list:
 
     def generate_embedding(self, text: str, input_type: str = None) -> list:
         embeddings = self.generate_embeddings([text], input_type)

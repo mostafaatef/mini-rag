@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     VECTOR_QDRANT_DB_PATH: str
     VECTOR_POSTGRES_DB_URL: str
     VECTOR_DB_DISTANCE_METHOD: Optional[str] = None
-
+    VECTOR_POSTGRES_INDEX_CREATION_THRESHOLD: Optional[int] = 1000
     DEFAULT_LANG: str = "en"
 
     VECTOR_DB_BACKEND_LITERAL: List[str]

@@ -73,3 +73,11 @@ class ChunkRepository(BaseRepository):
         self.session.add_all(chunks)
         await self.session.flush()
         return [chunk.id for chunk in chunks]
+
+    async def get_total_chunks_count(self, project_id: int):
+        result = 0
+        query = select(func.count(Chunk.id)).where(
+            Chunk.chunk_project_id == int(project_id)
+        )
+        result = await self.session.execute(query)
+        return result.scalar()

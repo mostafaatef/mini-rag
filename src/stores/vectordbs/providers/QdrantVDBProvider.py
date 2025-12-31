@@ -10,15 +10,28 @@ from src.models.schemes.mini_rag_db.nosql import RetrievedChunkIndex
 
 
 class QdrantVDBProvider(BaseVectorDBProvider):
-    def __init__(self, db_path: str, distance_method: str):
-        super().__init__(db_path, distance_method)
-        self.distance_method = models.Distance.COSINE
+    def __init__(
+        self,
+        db_client,
+        default_vector_size: int = 768,
+        distance_method: str = None,
+        index_threshold: int = 1000,
+    ):
+        super().__init__(
+            db_path=db_client,
+            distance_method=distance_method,
+            default_vector_size=default_vector_size,
+            index_threshold=index_threshold,
+        )
 
+        self.distance_method = models.Distance.COSINE
+        self.db_client = db_client
         if distance_method == QdrantDistanceMethodEnums.DOT.value:
             self.distance_method = models.Distance.DOT
         elif distance_method == QdrantDistanceMethodEnums.COSINE.value:
             self.distance_method = models.Distance.COSINE
 
+        self.logger = getLogger("uvicorn")
         self.logger.info("QdrantVDB initialized")
 
     async def connect(self):
@@ -27,7 +40,7 @@ class QdrantVDBProvider(BaseVectorDBProvider):
         retries = 3
         for i in range(retries):
             try:
-                self.client = AsyncQdrantClient(path=self.db_path)
+                self.client = AsyncQdrantClient(path=self.db_client)
                 self.logger.info("QdrantVDB connected")
                 return True
             except Exception as e:
@@ -64,11 +77,13 @@ class QdrantVDBProvider(BaseVectorDBProvider):
     async def create_collection(
         self, collection_name: str, embedding_size: int, do_reset: bool = False
     ):
+        self.logger.info("QdrantVDB create_collection")
+
         if await self.is_collection_exists(collection_name):
             if do_reset:
                 await self.delete_collection(collection_name)
             else:
-                self.logger.error(f"Collection {collection_name} already exists")
+                self.logger.warning(f"Collection {collection_name} already exists")
                 return False
         await self.client.create_collection(
             collection_name=collection_name,

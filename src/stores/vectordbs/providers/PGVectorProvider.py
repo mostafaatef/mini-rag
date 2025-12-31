@@ -1,7 +1,11 @@
 from typing import List, Optional
 from logging import getLogger
 from .BaseVDBProvider import BaseVectorDBProvider
-from ..VectorDBEnums import PgVectorDistanceMethodEnums, PgVectorTablesSchemeEnums
+from ..VectorDBEnums import (
+    PgVectorDistanceMethodEnums,
+    PgVectorTablesSchemeEnums,
+    PgVectorIndexTypeEnums,
+)
 from sqlalchemy.sql import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncEngine
 from src.models.schemes.mini_rag_db.sql import RetrievedChunkIndex
@@ -14,14 +18,24 @@ class PGVectorProvider(BaseVectorDBProvider):
         db_client: AsyncEngine,
         default_vector_size: int = 768,
         distance_method: str = None,
+        index_threshold: int = 1000,
     ):
         # We don't use db_path for PG, but BaseVectorDBProvider expects it.
-        super().__init__(db_path="", distance_method=distance_method)
+        super().__init__(
+            db_path="",
+            distance_method=distance_method,
+            default_vector_size=default_vector_size,
+            index_threshold=index_threshold,
+        )
         self.db_client = db_client
         self.default_vector_size = default_vector_size
         self.pgvector_tables_prefix = PgVectorTablesSchemeEnums._PREFIX.value
+        self.default_index_name = (
+            lambda collection_name: f"idx_{collection_name}_vector"
+        )
         self.logger = getLogger("uvicorn")
         self._collection_exists_cache = set()
+        self.index_threshold = index_threshold
 
         # Map distance enum to PGVector operators
         self.distance_operator = "<=>"  # Default Cosine
@@ -120,8 +134,33 @@ class PGVectorProvider(BaseVectorDBProvider):
             self.logger.error(f"Error creating collection: {e}")
             return False
 
-    async def create_index(self, collection_name: str):
+    async def is_index_exists(self, table_name: str, index_name: str) -> bool:
+        query = sql_text(
+            "SELECT indexname FROM pg_indexes WHERE tablename = :table_name AND indexname = :index_name;"
+        )
+        async with self.db_client.connect() as conn:
+            result = await conn.execute(
+                query, {"table_name": table_name, "index_name": index_name}
+            )
+            return bool(result.scalar_one_or_none())
+
+    async def create_index(
+        self, collection_name: str, index_type: str = PgVectorIndexTypeEnums.HNSW.value
+    ):
         table_name = self._sanitize_table_name(collection_name)
+        index_name = self.default_index_name(table_name)
+
+        if await self.is_index_exists(table_name, index_name):
+            return False
+
+        async with self.db_client.connect() as conn:
+            count = await conn.execute(sql_text(f"SELECT COUNT(*) FROM {table_name};"))
+            count = count.scalar_one()
+            if count < self.index_threshold:
+                return False
+        self.logger.info(
+            f"Creating index for {table_name} with threshold {self.index_threshold}"
+        )
 
         # Map driver operator to index ops
         index_ops = "vector_cosine_ops"
@@ -131,16 +170,32 @@ class PGVectorProvider(BaseVectorDBProvider):
             index_ops = "vector_ip_ops"
 
         index_query = sql_text(
-            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_vector ON {table_name} USING hnsw ({PgVectorTablesSchemeEnums.VECTOR.value} {index_ops});"
+            f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} USING {index_type} ({PgVectorTablesSchemeEnums.VECTOR.value} {index_ops});"
         )
 
         async with self.db_client.connect() as conn:
             try:
                 await conn.execute(index_query)
                 await conn.commit()
-                self.logger.info(f"HNSW index created for {table_name}")
+                self.logger.info(f"{index_type} index created for {table_name}")
             except Exception as index_err:
-                self.logger.warning(f"Could not create HNSW index: {index_err}")
+                self.logger.warning(f"Could not create {index_type} index: {index_err}")
+
+    async def reset_index(
+        self,
+        collection_name: str,
+        index_type: str = PgVectorIndexTypeEnums.HNSW.value,
+    ):
+        table_name = self._sanitize_table_name(collection_name)
+        index_name = self.default_index_name(table_name)
+        async with self.db_client.connect() as conn:
+            try:
+                await conn.execute(sql_text(f"DROP INDEX IF EXISTS {index_name};"))
+                await conn.commit()
+                self.logger.info(f"Index {index_name} dropped for {table_name}")
+            except Exception as index_err:
+                self.logger.warning(f"Could not drop index {index_name}: {index_err}")
+        return await self.create_index(collection_name, index_type)
 
     async def delete_collection(self, collection_name: str):
         table_name = self._sanitize_table_name(collection_name)

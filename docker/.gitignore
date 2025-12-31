@@ -1,2 +1,4 @@
-mongodb_data
-.env
+env/.env*
+minirag_app/alembic.ini
+!env/.env.example*
+!minirag_app/alembic.ini

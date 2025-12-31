@@ -16,6 +16,7 @@ from src.stores.llm.templates.template_parser import TemplateParser
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from src.utils.metrics import setup_metrics
 
 
 @asynccontextmanager
@@ -98,6 +99,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+setup_metrics(app)
 
 
 @app.get("/api/v1/health")

@@ -35,115 +35,85 @@ The project follows a clean, modular architecture:
 
 ### 1. Prerequisites
 
-- Python 3.10+
 - Docker & Docker Compose
 
-### 2. Setup Database
+### 2. Fast Setup (Docker Only)
 
-Start the MongoDB and PostgreSQL instances using Docker:
+The easiest way to run Mini-RAG is via Docker. This will spawn the FastAPI app, Database (Postgres/Mongo), and Monitoring stack (Prometheus/Grafana).
+
+```bash
+# Clone and enter the project
+cd mini-rag/docker
+
+# Initialize environment files (optional, default examples are provided)
+# cp env/.env.example.app env/.env.app
+
+# Start everything
+docker compose up -d
+```
+
+- **API Server**: `http://localhost:8000`
+- **API Docs**: `http://localhost:8000/docs`
+- **Grafana**: `http://localhost:3000` (Default: admin/admin)
+- **Prometheus**: `http://localhost:9090`
+
+### 3. Manual Development Setup
+
+If you prefer to run the application code locally but the databases in Docker:
+
+#### A. Start Databases
 
 ```bash
 cd docker
-cp .env.example .env
-# Edit .env if necessary
-docker-compose up -d
+docker compose up -d pgvector mongodb qdrant
 ```
 
-- **MongoDB** will be available at `mongodb://localhost:27007` (mapped from 27017).
-- **PostgreSQL** will be available at `postgresql://localhost:5432`.
-
-### 3. Setup Application
+#### B. Setup Python Environment
 
 ```bash
 cd src
-# Create virtual environment (optional but recommended)
-conda create -n mini-rag python=3.10
-conda activate mini-rag
-
-# Install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configuration
-
-Copy the example environment file and configure your settings:
+#### C. Database Migrations
 
 ```bash
-cp .env.example .env
-```
-
-**Critical Settings:**
-- `MONGODB_URL`: Set to `mongodb://localhost:27007` if using the provided Docker setup.
-- `POSTGRES_...`: Configure connection details for PostgreSQL.
-- `GENERATION_BACKEND_LLM` / `EMBEDDING_BACKEND_LLM`: Choose your provider (OPENAI, COHERE, GOOGLE, OLLAMA).
-
-### 5. Database Migrations (PostgreSQL)
-
-Initialize the SQL database schema using Alembic:
-
-```bash
-# Run from the project root (mini-rag/)
+# Run from the project root
 alembic -c src/models/schemes/mini_rag_db/sql/alembic.ini upgrade head
 ```
 
-For detailed usage, see [Alembic Guide](src/models/schemes/mini_rag_db/sql/alembic/README).
-
-### 6. Run Server
+#### D. Run Server
 
 ```bash
 # From the src directory
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Server will start at `http://localhost:8000`. API docs available at `http://localhost:8000/docs`.
-
----
-
-## 📚 API Reference
-
-**Note**: All endpoints are prefixed with `/api/v1`.
-
-### Data Management
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/data/upload/{project_title}` | Upload a file. Returns `asset_id`. |
-| `POST` | `/data/process/{project_title}` | Process an asset into chunks. Requires `asset_id`. |
-
-**IMPORTANT**: The API uses `asset_id` to reference uploaded files. Please ensure your client applications use this field instead of `file_id`.
-
----
-
-## 📂 Project Structure
-
-```
-mini-rag/
-├── docker/                 # Docker configuration
-├── qdrant_db/              # Local Qdrant storage (if applicable)
-├── src/
-│   ├── main.py             # Application entry point
-│   ├── controllers/        # Business logic
-│   ├── models/             # Database models & Schemas
-│   │   ├── schemes/        # SQL & NoSQL schemes
-│   ├── routes/             # API Endpoints
-│   └── helpers/            # Configuration & Utilities
-└── README.md
+uvicorn main:app --reload
 ```
 
 ---
 
-## 🎓 Learning Resources
+## 📊 Monitoring & Proxying
 
-This project is part of an educational series on building RAG applications.
+The Docker setup includes a pre-configured monitoring stack:
 
-| # | Title | Link | Branch |
-|---|---|---|---|
-| 1 | About the Course | [Video](https://www.youtube.com/watch?v=Vv6e2Rb1Q6w&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj) | NA |
-| 4 | Project Architecture | [Video](https://www.youtube.com/watch?v=Ei_nBwBbFUQ&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=4) | [tut-001](https://github.com/bakrianoo/mini-rag/tree/tut-001) |
-| 7 | Uploading a File | [Video](https://www.youtube.com/watch?v=5alMKCbFqWs&list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj&index=7) | [tut-004](https://github.com/bakrianoo/mini-rag/tree/tut-004) |
-| 8 | File Processing | [Video](https://www.youtube.com/watch?v=gQgr2iwtSBw) | [tut-005](https://github.com/bakrianoo/mini-rag/tree/tut-005) |
+- **Nginx**: Acting as a reverse proxy. Accessible at `http://localhost`.
+- **Prometheus**: Collecting metrics from FastAPI, Postgres, and the host system.
+- **Grafana**: Visualizing the collected data. Includes data source configurations for Prometheus.
 
-*(See full playlist for all videos)*
+### Why some services were removed?
+
+- **Grafana Agent**: Redundant for local setups; Prometheus handles scraping directly.
+- **Pushgateway**: Used for short-lived batch jobs (FastAPI is a long-lived service).
+- **Alertmanager**: Used for routing alerts to Slack/Email (unnecessary for local dev).
+
+---
+
+## 🛠️ Cleansing & Maintenance
+
+- **Python environment**: The project now uses `uv` for lightning-fast, reproducible builds in Docker.
+- **Single Worker**: Uvicorn is restricted to 1 worker in Docker to prevent local Qdrant database locking.
+- **Clean Config**: Example files are updated to use Docker-native hostnames (`pgvector`, `mongodb`).
 
 ---
 

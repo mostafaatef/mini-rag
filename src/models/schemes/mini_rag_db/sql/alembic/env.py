@@ -9,13 +9,26 @@ import os
 import sys
 from pathlib import Path
 
-# Add project root to path (6 levels up from this file)
-# src/models/schemes/mini_rag_db/sql/alembic/env.py -> mini-rag/
-project_root = Path(__file__).parent.parent.parent.parent.parent.parent.parent.resolve()
+# Add project root to path
+current_file = Path(__file__).resolve()
+
+
+# Look for requirements.txt to identify project root
+def find_root(start_path):
+    for parent in start_path.parents:
+        if (parent / "requirements.txt").exists():
+            return parent
+    return start_path.parents[6]  # Fallback
+
+
+project_root = find_root(current_file)
 sys.path.append(str(project_root))
 
-from src.models.schemes.mini_rag_db.sql.schemes.mini_rag_base import SqlAlchemyBase
-
+# Robust import for SqlAlchemyBase
+try:
+    from src.models.schemes.mini_rag_db.sql.schemes.mini_rag_base import SqlAlchemyBase
+except ImportError:
+    from models.schemes.mini_rag_db.sql.schemes.mini_rag_base import SqlAlchemyBase
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -28,29 +41,25 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 target_metadata = SqlAlchemyBase.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+
+def get_url():
+    # Priority: Env var, then .ini file
+    url = os.getenv("VECTOR_POSTGRES_DB_URL")
+    if not url:
+        user = os.getenv("POSTGRES_USERNAME", "minirag")
+        password = os.getenv("POSTGRES_PASSWORD", "minirag")
+        host = os.getenv("POSTGRES_HOST", "pgvector")
+        port = os.getenv("POSTGRES_PORT", "5432")
+        db = os.getenv("POSTGRES_MAIN_DATABASE", "mini_rag")
+        url = f"postgresql://{user}:{password}@{host}:{port}/{db}"
+    return url
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
-    url = config.get_main_option("sqlalchemy.url")
+    """Run migrations in 'offline' mode."""
+    url = get_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -63,14 +72,13 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """Run migrations in 'online' mode."""
+    # Override sqlalchemy.url with dynamic URL
+    configuration = config.get_section(config.config_ini_section, {})
+    configuration["sqlalchemy.url"] = get_url()
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

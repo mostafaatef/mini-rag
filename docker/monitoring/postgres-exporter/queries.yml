@@ -1,0 +1,34 @@
+pgvector_index:
+  query: |
+    SELECT 
+      schemaname,
+      relname as table_name,
+      indexrelname as index_name,
+      pg_relation_size(indexrelid) as index_size_bytes
+    FROM pg_stat_user_indexes 
+    JOIN pg_index ON indexrelid = pg_index.indexrelid
+    WHERE EXISTS (
+      SELECT 1 FROM pg_opclass 
+      WHERE pg_opclass.oid = ANY(pg_index.indclass) 
+      AND pg_opclass.opcname IN ('vector_l2_ops', 'vector_cosine_ops', 'vector_ip_ops', 'vector_spherical_ops')
+    )
+  metrics:
+    - schemaname:
+        usage: LABEL
+        description: Name of the schema
+    - table_name:
+        usage: LABEL
+        description: Name of the table
+    - index_name:
+        usage: LABEL
+        description: Name of the index
+    - index_size_bytes:
+        usage: GAUGE
+        description: Size of the pgvector index in bytes
+
+pgvector_info:
+  query: "SELECT extversion as version FROM pg_extension WHERE extname = 'vector'"
+  metrics:
+    - version:
+        usage: LABEL
+        description: Version of the pgvector extension

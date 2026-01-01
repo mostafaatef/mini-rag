@@ -3,14 +3,17 @@ from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
 
-# Define Metrics with standard naming and labels
+# Define Metrics with standard naming and labels (compatible with common dashboards)
+# Adding redundant labels (service, app, application) for maximum compatibility with pre-built dashboards
 REQUEST_COUNT = Counter(
-    "http_request_count",
+    "http_requests",
     "Total number of HTTP requests",
-    ["method", "endpoint", "status_code"],
+    ["method", "handler", "status", "app_name", "service", "app", "application"],
 )
 REQUEST_LATENCY = Histogram(
-    "http_request_latency", "HTTP request latency in seconds", ["method", "endpoint"]
+    "http_request_duration_seconds",
+    "HTTP request latency in seconds",
+    ["method", "handler", "status", "app_name", "service", "app", "application"],
 )
 
 
@@ -29,15 +32,22 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         finally:
             process_time = time.time() - start_time
 
-            # Increment request counter with labels
-            REQUEST_COUNT.labels(
-                method=method, endpoint=endpoint, status_code=status_code
-            ).inc()
+            # Labels dictionary to match definition
+            metric_labels = {
+                "method": method,
+                "handler": endpoint,
+                "status": str(status_code),
+                "app_name": "fastapi",
+                "service": "fastapi",
+                "app": "fastapi",
+                "application": "fastapi",
+            }
 
-            # Observe request latency with labels
-            REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(
-                process_time
-            )
+            # Increment request counter with all defined labels
+            REQUEST_COUNT.labels(**metric_labels).inc()
+
+            # Observe request latency with all defined labels
+            REQUEST_LATENCY.labels(**metric_labels).observe(process_time)
 
         return response
 
